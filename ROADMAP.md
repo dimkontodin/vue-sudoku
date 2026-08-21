@@ -270,147 +270,91 @@ showed 4 started / 3 won / 75% after winning three and abandoning one.
 
 ---
 
-## Phase 6 — Candidates, logical hints, and hand-entered puzzles
+## Phase 6 — Candidates, logical hints, and hand-entered puzzles ✅
 
-Three features on one foundation. Full technique specs live in
-[docs/solving-techniques.md](docs/solving-techniques.md); this is the tracker.
+Technique specs in [docs/solving-techniques.md](docs/solving-techniques.md),
+benchmark grids in [docs/hard-puzzles.md](docs/hard-puzzles.md).
 
-### 6a — The candidate engine (foundation for everything else)
+### 6a — The candidate engine ✅
 
-- [ ] `core/candidates.ts` — `computeCandidates(board): Uint16Array`
-  - Basic exclusion only: peers in row, column, box. Nothing cleverer.
-  - Returns the **same bitmask representation as `notes`**, which is what makes
-    auto-fill a one-liner and lets the logical solver share the structure.
-  - Verified up front against the `candidatesFor` helper currently private
-    inside `solver.ts`: identical on every empty cell across generated experts.
-- [ ] Refactor `solver.ts` to use it (measure first — it is the hot path)
-- [ ] **Auto-fill notes** — `game.fillNotes()` writing `computeCandidates(board)`
-      straight into `notes`, as one undoable `Move`
-  - [ ] Button in `GameControls`, and a "keep notes updated" toggle
-  - [ ] Placing a digit already strips peers' notes (Phase 3), so an auto-filled
-        grid stays correct as you play
+- [x] `core/candidates.ts` — `computeCandidates(board): Uint16Array`, basic
+      exclusion only, returning the **same bitmask type as `notes`**
+- [x] `core/units.ts` — the 27 units plus `r4c7` labelling for explanations
+- [x] `game.fillNotes()` — legal candidates into every empty cell, as ONE
+      undoable move
+- [x] Fill notes button in `GameControls`
 
-### 6b — Logical solver and graded hints
+### 6b — Logical solver and graded hints ✅
 
-Techniques in escalating tiers, cheapest first. A hint offers the *easiest*
-pattern currently available.
+- [x] `core/techniques/` — 17 techniques across 4 tiers, each returning a
+      `TechniqueStep` with placements, eliminations, cells to highlight and a
+      sentence explaining itself
+- [x] `core/logicalSolver.ts` — cheapest technique first, cascade restarts from
+      the top after every step
+- [x] Tier 0 Naked/Hidden Single · Tier 1 Pointing, Box/Line Reduction,
+      Naked Pair/Triple/Quad, Hidden Pair/Triple · Tier 2 generic `findFish`
+      giving X-Wing, Swordfish, Jellyfish · Tier 3 Simple Colouring, Y-Wing,
+      XYZ-Wing, W-Wing, BUG+1
+- [x] HoDoKu-style grading: score summed over steps, floored at the tier of the
+      hardest technique used
+- [x] Three-step hint ladder — name it, locate it, apply it
+- [x] `reveal()` kept as the explicit give-up link
 
-- [ ] `core/techniques/` — one module per technique, all returning a
-      `TechniqueStep` (never a boolean): placements, eliminations, **cells to
-      highlight**, and an explanation string
-- [ ] `core/logicalSolver.ts` — apply the cheapest technique that fires, then
-      **restart the cascade from the top**
-- [ ] Tier 0: Naked Single, Hidden Single
-- [ ] Tier 1: Pointing, Box/Line Reduction, Naked Pair/Triple, Hidden Pair
-- [ ] Tier 2: generic `findFish(digit, n, orientation)` → X-Wing, Swordfish, Jellyfish
-- [ ] Tier 3: Simple Colouring, Y-Wing, XYZ-Wing, W-Wing, BUG+1
-- [ ] Grading: HoDoKu-style hybrid — sum of step scores, floored at the tier of
-      the hardest technique used
-- [ ] Replace the current reveal-a-digit hint with a three-step ladder:
-      *name the technique → highlight the cells → apply it*
-- [ ] Keep `reveal()` as the final "just tell me" fallback
+Tier 4 (Unique Rectangles, Empty Rectangle) and Tier 5 (chains) remain out of
+scope by choice; the solver reports "stuck" rather than guessing.
 
-Tier 4 (Unique Rectangles, Empty Rectangle) and Tier 5 (chains) are explicitly
-**out of scope** — see the reference doc for why, and for the list of techniques
-not worth building at all.
+### 6c — Hand-entered puzzles ✅
 
-### 6c — Hand-entered puzzles
+- [x] `core/parse.ts` — accepts `.`, `0`, `_`, ignores whitespace, rejects the
+      rest rather than guessing
+- [x] Validation ladder on existing primitives: conflicts → 17-clue minimum →
+      node-budgeted `countSolutions`
+- [x] `views/EnterView.vue` at `/enter`, with a live board preview
+- [x] Grades the accepted puzzle and lists the techniques it needs
+- [x] `usePuzzleHandoff` passes it to the game
 
-- [ ] `views/EnterView.vue` at `/enter` — type or paste an 81-char string
-- [ ] `core/parse.ts` — accept `.` `0` and whitespace, reject anything else
-- [ ] Validation ladder, built entirely on existing primitives:
+Photo scanning stays out of scope — grid detection, perspective correction and
+digit recognition is a project of its own.
 
-| check | verdict |
-| --- | --- |
-| `conflictsIn(board).size > 0` | conflicting clues |
-| fewer than 17 clues | can never be unique |
-| `countSolutions(board, 2, budget)` → `0` | unsolvable |
-| → `1` | good puzzle |
-| → `2` | ambiguous, multiple solutions |
-| → `-1` | budget exceeded, too ambiguous to check |
+**Gate:** ✅ 226 tests green. Verified in the browser end to end: a pasted
+17-clue grid validated, graded *easy — Hidden Single, Naked Single*, handed to
+the game, and solved by applying 63 hints with zero incorrect cells. An expert
+puzzle driven the same way climbed Naked Single, Hidden Single, Pointing,
+Box/Line Reduction, Hidden Pair, Simple Colouring and Jellyfish before honestly
+reporting it was stuck.
 
-- [ ] Grade the accepted puzzle with the 6b solver and show which techniques it needs
-- [ ] Feed it into the existing game via `game.load()`
+### Things learned the hard way
 
-**Scanning a photo of a puzzle is NOT in this phase.** Grid detection,
-perspective correction and digit recognition is a project of its own, an order of
-magnitude past typing 81 characters. Deferred to its own phase.
-
-### Gate
-
-- [ ] Auto-notes fills exactly the legal candidates, and undoes as one move
-- [ ] The logical solver solves every generated puzzle without guessing, and its
-      grade correlates with the generator's difficulty label
-- [ ] Hints always offer the easiest available technique, never a harder one
-- [ ] A hand-entered puzzle is correctly classified in all six cases above
-
-### Things to get right
-
-- **Uniqueness gating.** Unique Rectangles and BUG assume exactly one solution.
-  On a hand-entered ambiguous grid they produce *wrong* eliminations. Since 6c
-  lets users enter arbitrary grids, any uniqueness-dependent technique must be
-  gated behind a confirmed `countSolutions(...) === 1` — this is the one place
-  6b and 6c genuinely interact.
-- **Naked subsets are about the union, not identical sets.** A naked triple can
-  be `{3,3,2}` or `{3,2,2}` or `{2,2,2}` candidates per cell. Matching identical
-  candidate sets misses most of them.
-- **Fish base units need 2..N positions, not exactly N.** Generalising X-Wing's
-  "exactly two" to Swordfish finds only the 2-2-2 case and misses most of them.
-- **Restart the cascade after every step**, or you will credit advanced
-  techniques for eliminations that a re-run of singles would have found — which
-  silently inflates every difficulty grade.
-- **Redundant-as-logic is not redundant-as-hint.** Every X-Wing is also a
-  Simple Colouring elimination, and the wings all fall out of XY-Chains. Build
-  them anyway: "X-Wing on 7s in rows 2 and 6" teaches; "alternating inference
-  chain" does not.
-
-### Benchmark fixtures
-
-Grids, provenance and full measurements in [docs/hard-puzzles.md](docs/hard-puzzles.md).
-
-- [ ] `core/__tests__/fixtures.ts` — the named hard puzzles as 81-char strings
-- [ ] Regression test: the anti-backtracking grid must stay in the tens of
-      thousands of nodes, not millions (i.e. MRV is actually engaged)
-- [ ] Once hidden singles exist, the same grid must need **zero** search
-
-Measured against our solver as shipped:
-
-| puzzle | our MRV | in-order |
-| --- | --- | --- |
-| anti-backtracking | 58,234 | 69,175,317 |
-| AI Escargot | 220 | 8,970 |
-| **Fata Morgana** | **74,020** | 1,984,466 |
-| Platinum Blonde | 2,886 | 1,114,772 |
-| Norvig grid2 | 719 | 9,727,397 |
-| *generated expert, median* | *204* | *9,697* |
-
-Everything solves in under 180 ms, so none of this threatens the UI — these are
-regression fixtures, not performance problems.
-
-**The finding that matters for this phase.** The two axes of difficulty are
-independent, and singles-only propagation shows it starkly:
-
-| puzzle | solved by naked + hidden singles alone? |
-| --- | --- |
-| anti-backtracking | **yes — 64/64 cells, zero search** |
-| AI Escargot | no — 1/64 |
-| Fata Morgana | no — 1/64 |
-| Platinum Blonde | no — 1/64 |
-
-The grid famous for defeating brute force falls entirely to the two *easiest*
-techniques in the game; it would rate about SE 2.3, an easy newspaper puzzle.
-The genuinely hard ones stall after a single placement. AI Escargot costs a
-naive solver less than a newspaper puzzle while being brutal for humans.
-
-So 6b's logical solver is not only a hint engine — **wiring singles propagation
-into the backtracking solver should take the anti-backtracking grid from 58,234
-nodes to 0.** It will do almost nothing for Fata Morgana, which is our real
-worst case and needs the advanced techniques.
-
-One caution carried from the research: the same puzzle rotated through its 8
-symmetries spans a **1,600× range** in naive node count. Any "hardest for brute
-force" claim that omits the orientation is meaningless — including ours, so
-fixtures must pin the orientation.
+- **Elimination-only hints looped forever.** Applying one leaves the board
+  untouched, so recomputing candidates from the board alone re-found the same
+  step — a live run gave **90 hints for 15 placements** and never reported being
+  stuck. The engine now keeps a candidate grid that accumulates eliminations
+  between board changes, seeded from the board *and narrowed by the player's
+  notes*. That second half matters: a note the player rubbed out **is** an
+  elimination they made. Only found by driving the real UI; every unit test
+  passed throughout.
+- **Scoring singles let clue count drive the grade.** Every puzzle must place
+  one digit per empty cell, so singles are mandatory work rather than
+  difficulty. At full weight their ~60 repetitions swamped the handful of
+  advanced steps that actually distinguish puzzles, and the 17-clue
+  anti-backtracking grid rated *hard* purely for being long. Singles now score
+  zero: the score measures deduction **beyond** the forced moves. A grid
+  solvable by singles alone is easy however long it takes — you never get stuck.
+- **Thresholds were calibrated, not guessed** — 40 generated puzzles per
+  difficulty. The first guess was 6x too high, so the score escalator never
+  fired at all.
+- **The generator's difficulty label is a poor proxy for logical difficulty.**
+  Many "hard" and "expert" grids need nothing past hidden singles, because
+  difficulty is picked by clue count. Grading at generation time with the
+  logical solver would fix it — a good future change.
+- **Three test premises were wrong before the code was.** A solved grid cannot
+  be "unsolvable but non-clashing" (every wrong digit clashes); Platinum Blonde
+  yields one hidden single before stalling, so it is not stuck on the first
+  hint; and narrowing a cell to an arbitrary digit is a dead cell, not a naked
+  single, unless that digit is actually legal there.
+- **Lint caught real test-quality problems**, not just style: conditional
+  `expect` calls inside loops meant several tests could pass while asserting
+  nothing. Collect-then-assert fixed both that and the failure messages.
 
 ---
 
@@ -448,7 +392,7 @@ pnpm lint && pnpm type-check && pnpm test:unit --run && pnpm build
 5. [x] `feat(composables): useSudoku, useHistory, useTimer, keyboard`
 6. [x] `feat(ui): board, cell, number pad, game view`
 7. [x] `feat: hints, auto-check, persistence, stats`
-8. [ ] `feat(core): candidate grid + auto-fill notes`
-9. [ ] `feat(core): logical solver with graded technique hints`
-10. [ ] `feat: hand-entered puzzles`
+8. [x] `feat(core): candidate grid + auto-fill notes`
+9. [x] `feat(core): logical solver with graded technique hints`
+10. [x] `feat: hand-entered puzzles`
 11. [ ] `refactor(state): move game state into a pinia store`
