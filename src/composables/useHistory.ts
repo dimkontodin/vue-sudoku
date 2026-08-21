@@ -43,9 +43,7 @@ export function useHistory<T>(options: UseHistoryOptions = {}): UseHistory<T> {
     const next = [...past.value, entry]
     // Drop the oldest entries once past the limit so a long game cannot grow
     // memory without bound.
-    past.value = next.length > limit
-      ? next.slice(next.length - limit)
-      : next
+    past.value = next.length > limit ? next.slice(next.length - limit) : next
     // Any new action invalidates the redo branch.
     future.value = []
   }

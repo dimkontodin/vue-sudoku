@@ -79,9 +79,7 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
     post({
       type: 'error',
       requestId: request.requestId,
-      message: error instanceof Error
-        ? error.message
-        : String(error),
+      message: error instanceof Error ? error.message : String(error),
     })
   })
 }

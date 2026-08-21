@@ -3,6 +3,7 @@ import { CELLS, SIZE } from '@/core/constants'
 import { colOf, peersOf, rowOf } from '@/core/grid'
 import { clearNote, notesToArray, toggleNote as toggleNoteBit } from '@/core/notes'
 import { conflictsIn, isComplete } from '@/core/validate'
+import { computeCandidates } from '@/core/candidates'
 import type { Board, Notes, Puzzle } from '@/core/types'
 import { useHistory } from './useHistory'
 
@@ -219,6 +220,27 @@ export function useSudoku(initial?: Puzzle, options: UseSudokuOptions = {}) {
     return true
   }
 
+  /**
+   * Replaces every empty cell's notes with its legal candidates, as ONE
+   * undoable move — filling 50 cells and then needing 50 undos to take it back
+   * would be miserable.
+   */
+  function fillNotes(): boolean {
+    const candidates = computeCandidates(board.value)
+    const move: Move = []
+
+    for (let index = 0; index < CELLS; index++) {
+      if (board.value[index]) continue
+      const next = candidates[index] ?? 0
+      if (next === (notes.value[index] ?? 0)) continue
+      move.push(changeFor(index, 0, next))
+    }
+
+    if (move.length === 0) return false
+    commit(move, true)
+    return true
+  }
+
   function notesFor(index: number): number[] {
     return notesToArray(notes.value[index] ?? 0)
   }
@@ -311,6 +333,7 @@ export function useSudoku(initial?: Puzzle, options: UseSudokuOptions = {}) {
     toggleNote,
     inputDigit,
     erase,
+    fillNotes,
     reveal,
     undo,
     redo,
