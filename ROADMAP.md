@@ -179,22 +179,46 @@ That is Phase 4's job; the gate here was proven by tests instead.
 
 ---
 
-## Phase 4 — Components & first playable
+## Phase 4 — Components & first playable ✅
 
-Build bottom-up.
+Built bottom-up.
 
-- [ ] `components/SudokuCell.vue` — dumb: `value`, `notes`, `isGiven`, `isSelected`, `hasConflict` → emits `select`
-  - [ ] notes render as a 3×3 mini-grid
-- [ ] `components/SudokuBoard.vue` — CSS Grid; 3×3 box borders via `nth-child`, no wrapper divs
-- [ ] Cell state classes: `.is-given`, `.is-selected`, `.is-peer`, `.is-same-value`, `.has-conflict`
-- [ ] `components/NumberPad.vue` — 1-9, erase, notes toggle
-- [ ] `components/GameStatusBar.vue` — difficulty, timer, mistakes
-- [ ] `components/DifficultyPicker.vue`
-- [ ] `views/GameView.vue` — wire the composables to the components
-- [ ] Accessibility: `role="grid"`, focusable cells, positional `aria-label`s
-- [ ] component test: `SudokuCell` renders the right state classes
+- [x] `components/SudokuCell.vue` — dumb: `value`, `notes`, `isGiven`, `isSelected`,
+      `isPeer`, `isSameValue`, `hasConflict` in, `select` out
+  - [x] notes render as a 3×3 mini-grid
+- [x] `components/SudokuBoard.vue` — CSS Grid; box separators via `nth-child`, no wrappers
+- [x] Cell state classes: `.is-given`, `.is-selected`, `.is-peer`, `.is-same-value`, `.has-conflict`
+- [x] `components/NumberPad.vue` — 1-9 with remaining counts, notes toggle, undo/redo, erase
+- [x] `components/GameStatusBar.vue` — difficulty, click-to-pause timer, (mistakes in Phase 5)
+- [x] `components/DifficultyPicker.vue` — `defineModel`, so the parent just writes `v-model`
+- [x] `views/GameView.vue` — the only smart component; wires composables to components
+- [x] Accessibility: cells are real buttons with positional `aria-label`s and `aria-pressed`
+- [x] `SudokuCell.spec.ts` — 19 tests covering state classes, notes, aria and emits
 
-**Gate:** fully playable — generate, click/type, notes, conflict highlighting, win detection.
+The Phase 2 solver harness moved to `views/SolverView.vue` at `/solver` rather than
+being deleted — it visualises a *search*, which has no notion of givens or selection,
+so it keeps its own bare grid.
+
+**Gate:** ✅ verified in the browser — 81 cells, 40 givens on easy, exactly 20 peers
+highlighted, conflicts flagged live, notes render, undo/redo work, arrow keys move,
+and solving the grid shows "Solved in 0:22" with the timer stopped. New game after a
+win clears the banner and resets the clock. 133 tests green.
+
+### Things learned the hard way
+
+- **Sass cannot add `rem` and `px`.** `$cell-size * 9 + $grid-line * 8` hard-errors,
+  and the dev server kept serving stale CSS instead of surfacing it — the measurement
+  simply did not change. Only `pnpm build` showed the error. `$board-width` now uses
+  `calc()` so the browser resolves the mixed units.
+- **Width alone does not separate the boxes.** With gap-painted grid lines every line
+  is the same colour, so a 3px box line next to a 1px grid line is nearly invisible.
+  The separators are now drawn with `box-shadow` in `--color-border-strong`; a border
+  would have eaten into the cell's own width and misaligned the columns.
+- **Parent scoped styles need `:deep()` to reach a child component's root.**
+  `.board :deep(.cell)` is what makes the `nth-child` box rules apply to `SudokuCell`.
+- **The cell stays dumb even about givens.** It emits `select` when a given is clicked
+  and lets `useSudoku` refuse the edit, rather than knowing the rule itself. There is a
+  test asserting exactly that.
 
 ---
 
@@ -246,6 +270,6 @@ pnpm lint && pnpm type-check && pnpm test:unit --run && pnpm build
 3. [x] `feat(core): backtracking solver and unique-puzzle generator + tests`
 4. [x] `feat(workers): offload generation to a web worker`
 5. [x] `feat(composables): useSudoku, useHistory, useTimer, keyboard`
-6. [ ] `feat(ui): board, cell, number pad, game view`
+6. [x] `feat(ui): board, cell, number pad, game view`
 7. [ ] `feat: hints, auto-check, persistence, stats`
 8. [ ] `refactor(state): move game state into a pinia store`

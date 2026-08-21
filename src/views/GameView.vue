@@ -1,128 +1,95 @@
 <script setup lang="ts">
-import { computed, onMounted, shallowRef } from 'vue';
-import { CELLS } from '@/core/constants';
-import { boxOf, colOf, rowOf } from '@/core/grid';
+import { onMounted, ref, shallowRef, watch } from 'vue';
 import type { Difficulty } from '@/core/types';
-import type { SolveSpeed } from '@/workers/protocol';
-import { useSolver } from '@/composables/useSolver';
+import { createSudokuClient } from '@/workers/sudokuClient';
+import { useSudoku } from '@/composables/useSudoku';
+import { useTimer } from '@/composables/useTimer';
+import { useBoardKeyboard } from '@/composables/useBoardKeyboard';
+import SudokuBoard from '@/components/SudokuBoard.vue';
+import NumberPad from '@/components/NumberPad.vue';
+import GameStatusBar from '@/components/GameStatusBar.vue';
+import DifficultyPicker from '@/components/DifficultyPicker.vue';
 
-// Phase 2 harness: enough UI to watch the worker stream a solve.
-// Phase 4 replaces this with real SudokuBoard / SudokuCell components.
+// The only "smart" component: it owns the composables and hands plain props
+// down to components that know nothing about the game.
+const client = createSudokuClient();
 
-const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert'];
-const SPEEDS: SolveSpeed[] = ['slow', 'medium', 'fast', 'instant'];
+const game = useSudoku();
+const timer = useTimer();
 
-const solver = useSolver();
-
-const puzzle = shallowRef<Uint8Array | null>(null);
-const difficulty = shallowRef<Difficulty>('hard');
-const speed = shallowRef<SolveSpeed>('fast');
+const difficulty = ref<Difficulty>('easy');
 const isGenerating = shallowRef(false);
+const hasWon = shallowRef(false);
 
-// The live board while solving, falling back to the puzzle when idle.
-const cells = computed(() => {
-  const source = solver.board.value ?? puzzle.value;
-  if (!source) return [];
+useBoardKeyboard(game, { isEnabled: () => !isGenerating.value && !hasWon.value });
 
-  return Array.from({ length: CELLS }, (_, index) => ({
-    index,
-    value: source[index] ?? 0,
-    isClue: (puzzle.value?.[index] ?? 0) !== 0,
-    boxShade: boxOf(index) % 2 === 0,
-    edgeRight: colOf(index) % 3 === 2 && colOf(index) !== 8,
-    edgeBottom: rowOf(index) % 3 === 2 && rowOf(index) !== 8,
-  }));
-});
-
-async function newPuzzle() {
-  // reset(), not cancel(): a finished run has no active request to cancel, so
-  // its solved board would otherwise stay on screen over the new puzzle.
-  solver.reset();
+async function newGame() {
   isGenerating.value = true;
+  hasWon.value = false;
   try {
-    const result = await solver.generate(difficulty.value);
-    puzzle.value = result.puzzle;
+    game.load(await client.generate(difficulty.value));
+    timer.reset();
+    timer.start();
   } finally {
     isGenerating.value = false;
   }
 }
 
-function startSolve() {
-  if (puzzle.value) solver.solve(puzzle.value, speed.value);
-}
+// Win detection lives here rather than in useSudoku: stopping the clock and
+// showing a banner are view concerns, not rules.
+watch(game.isSolved, (solved) => {
+  if (!solved) return;
+  hasWon.value = true;
+  timer.pause();
+});
 
-onMounted(newPuzzle);
+onMounted(newGame);
 </script>
 
 <template>
   <section class="game">
-    <div class="game__controls">
-      <label>
-        Difficulty
-        <select v-model="difficulty" :disabled="solver.isSolving.value">
-          <option v-for="option in DIFFICULTIES" :key="option" :value="option">{{ option }}</option>
-        </select>
-      </label>
-
-      <label>
-        Speed
-        <select v-model="speed" :disabled="solver.isSolving.value">
-          <option v-for="option in SPEEDS" :key="option" :value="option">{{ option }}</option>
-        </select>
-      </label>
-
-      <button :disabled="isGenerating || solver.isSolving.value" @click="newPuzzle">
-        {{ isGenerating ? 'Generating…' : 'New puzzle' }}
+    <div class="game__toolbar">
+      <DifficultyPicker v-model="difficulty" :disabled="isGenerating" />
+      <button type="button" class="game__new" :disabled="isGenerating" @click="newGame">
+        {{ isGenerating ? 'Generating…' : 'New game' }}
       </button>
-
-      <button v-if="!solver.isSolving.value" :disabled="!puzzle" @click="startSolve">Solve</button>
-      <button v-else @click="solver.cancel()">Cancel</button>
     </div>
 
-    <div class="board" role="grid" aria-label="Sudoku board">
-      <div
-        v-for="cell in cells"
-        :key="cell.index"
-        class="board__cell"
-        :class="{
-          'is-clue': cell.isClue,
-          'is-shaded': cell.boxShade,
-          'is-edge-right': cell.edgeRight,
-          'is-edge-bottom': cell.edgeBottom,
-        }"
-      >
-        {{ cell.value || '' }}
-      </div>
-    </div>
+    <GameStatusBar
+      :difficulty="difficulty"
+      :elapsed="timer.formatted.value"
+      :is-running="timer.isRunning.value"
+      @toggle-timer="timer.toggle()"
+    />
 
-    <dl class="stats">
-      <div>
-        <dt>Status</dt>
-        <dd>{{ solver.status.value }}</dd>
-      </div>
-      <div>
-        <dt>Steps</dt>
-        <dd>{{ solver.steps.value.toLocaleString() }}</dd>
-      </div>
-      <div>
-        <dt>Backtracks</dt>
-        <dd>{{ solver.backtracks.value.toLocaleString() }}</dd>
-      </div>
-      <div>
-        <dt>Depth</dt>
-        <dd>{{ solver.depth.value }}</dd>
-      </div>
-      <div>
-        <dt>Steps/sec</dt>
-        <dd>{{ solver.stepsPerSecond.value.toLocaleString() }}</dd>
-      </div>
-      <div>
-        <dt>Elapsed</dt>
-        <dd>{{ Math.round(solver.elapsedMs.value) }} ms</dd>
-      </div>
-    </dl>
+    <SudokuBoard
+      :board="game.board.value"
+      :notes="game.notes.value"
+      :puzzle="game.puzzle.value"
+      :selected-index="game.selectedIndex.value"
+      :conflicts="game.conflicts.value"
+      @select="game.select($event)"
+    />
 
-    <p v-if="solver.errorMessage.value" class="error">{{ solver.errorMessage.value }}</p>
+    <NumberPad
+      :remaining-counts="game.remainingCounts.value"
+      :note-mode="game.noteMode.value"
+      :can-undo="game.canUndo.value"
+      :can-redo="game.canRedo.value"
+      @digit="game.inputDigit($event)"
+      @erase="game.erase()"
+      @toggle-notes="game.toggleNoteMode()"
+      @undo="game.undo()"
+      @redo="game.redo()"
+    />
+
+    <Transition name="win">
+      <p v-if="hasWon" class="game__win" role="status">Solved in {{ timer.formatted.value }}</p>
+    </Transition>
+
+    <p class="game__hint">
+      Arrows move · 1–9 enter · <kbd>N</kbd> notes · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo
+    </p>
   </section>
 </template>
 
@@ -131,105 +98,63 @@ onMounted(newPuzzle);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: $gap-lg;
+  gap: $gap-md;
 }
 
-.game__controls {
+.game__toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: $gap-md;
+  width: 100%;
+  max-width: $board-width;
+}
 
-  label {
-    display: flex;
-    align-items: center;
-    gap: $gap-xs;
-    font-size: 0.85rem;
-    color: var(--color-text-muted);
-  }
+.game__new {
+  padding: $gap-xs $gap-md;
+  border: 1px solid var(--color-border);
+  border-radius: $radius-sm;
+  background: var(--color-surface-raised);
+  font-size: 0.85rem;
 
-  select,
-  button {
-    padding: $gap-xs $gap-sm;
-    border: 1px solid var(--color-border);
-    border-radius: $radius-sm;
-    background: var(--color-surface-raised);
-    color: var(--color-text);
-  }
-
-  button:disabled {
+  &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 }
 
-.board {
-  display: grid;
-  grid-template-columns: repeat(9, $cell-size);
-  border: $box-line solid var(--color-border-strong);
-  background: var(--color-border);
-  gap: $grid-line;
-}
-
-.board__cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  aspect-ratio: 1;
-  background: var(--color-surface-raised);
-  font-variant-numeric: tabular-nums;
-  font-size: 1.1rem;
+.game__win {
+  padding: $gap-sm $gap-lg;
+  border-radius: $radius-md;
+  background: color-mix(in srgb, var(--color-primary) 18%, var(--color-surface));
   color: var(--color-primary);
+  font-weight: 600;
+}
 
-  &.is-shaded {
-    background: var(--color-surface);
-  }
+.game__hint {
+  max-width: $board-width;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-align: center;
 
-  &.is-clue {
-    color: var(--color-text);
-    font-weight: 600;
-  }
-
-  &.is-edge-right {
-    margin-right: $grid-line;
-    box-shadow: $grid-line 0 0 var(--color-border-strong);
-  }
-
-  &.is-edge-bottom {
-    margin-bottom: $grid-line;
-    box-shadow: 0 $grid-line 0 var(--color-border-strong);
+  kbd {
+    padding: 1px 4px;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 0.9em;
   }
 }
 
-.stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: $gap-md;
-  margin: 0;
-  font-size: 0.85rem;
-
-  div {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-  }
-
-  dt {
-    color: var(--color-text-muted);
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  dd {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-  }
+.win-enter-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
 }
 
-.error {
-  color: var(--color-danger);
+.win-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router';
+import { RouterLink, RouterView } from 'vue-router'
 </script>
 
 <template>
@@ -8,6 +8,7 @@ import { RouterLink, RouterView } from 'vue-router';
       <h1 class="app__title">Sudoku</h1>
       <nav class="app__nav">
         <RouterLink to="/">Play</RouterLink>
+        <RouterLink to="/solver">Solver</RouterLink>
         <RouterLink to="/stats">Stats</RouterLink>
       </nav>
     </header>
