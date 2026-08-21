@@ -20,6 +20,10 @@ const props = defineProps<{
   hasConflict: boolean
   /** Disagrees with the solution. Only surfaced when the user asked to check. */
   isIncorrect: boolean
+  /** Part of the pattern a hint is pointing at. */
+  isHintPattern: boolean
+  /** A cell the hint's step would act on. */
+  isHintTarget: boolean
 }>()
 
 const emit = defineEmits<{ select: [index: number] }>()
@@ -27,11 +31,13 @@ const emit = defineEmits<{ select: [index: number] }>()
 const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 const label = computed(() => {
+  type KProps = { [P in keyof typeof props]: (typeof props)[P] }
   const position = `Row ${rowOf(props.index) + 1}, column ${colOf(props.index) + 1}`
   if (props.value) {
-    const marks = [props.isGiven ? 'given' : null, props.isIncorrect ? 'incorrect' : null].filter(
-      Boolean,
-    )
+    const marksToShow = ['isGiven', 'isIncorrect'] satisfies Array<keyof KProps>
+    const marks = marksToShow
+      .map((key) => (props[key] ? key.replace(/^is/, '').toLowerCase() : null))
+      .filter(Boolean)
     return [position, String(props.value), ...marks].join(', ')
   }
 
@@ -52,6 +58,8 @@ const label = computed(() => {
       'is-same-value': isSameValue,
       'has-conflict': hasConflict,
       'is-incorrect': isIncorrect,
+      'is-hint-pattern': isHintPattern,
+      'is-hint-target': isHintTarget,
     }"
     :aria-label="label"
     :aria-pressed="isSelected"
@@ -105,6 +113,17 @@ const label = computed(() => {
   &.has-conflict {
     background: color-mix(in srgb, var(--color-danger) 18%, var(--color-surface-raised));
     color: var(--color-danger);
+  }
+
+  // Hint highlights sit above the passive states but below selection, so the
+  // player never loses track of where their cursor is.
+  &.is-hint-pattern {
+    background: color-mix(in srgb, #f0b429 32%, var(--color-surface-raised));
+  }
+
+  &.is-hint-target {
+    background: color-mix(in srgb, #f0b429 55%, var(--color-surface-raised));
+    box-shadow: inset 0 0 0 2px #f0b429;
   }
 
   // Declared after .is-selected so a wrong answer stays visible even while

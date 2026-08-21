@@ -9,6 +9,7 @@ const emit = defineEmits<{
   hint: []
   check: []
   toggleInstantFeedback: []
+  fillNotes: []
   restart: []
 }>()
 </script>
@@ -36,6 +37,15 @@ const emit = defineEmits<{
       @click="emit('toggleInstantFeedback')"
     >
       Auto-check {{ instantFeedback ? 'on' : 'off' }}
+    </button>
+
+    <button
+      type="button"
+      class="controls__button"
+      title="Fill every empty cell with its legal candidates"
+      @click="emit('fillNotes')"
+    >
+      Fill notes
     </button>
 
     <button type="button" class="controls__button" @click="emit('restart')">Restart</button>

@@ -16,6 +16,10 @@ const props = defineProps<{
   conflicts: ReadonlySet<number>
   /** Indices to flag as wrong. Empty unless the player asked to be checked. */
   incorrect: ReadonlySet<number>
+  /** Cells forming the pattern a hint is pointing at. */
+  hintPattern?: ReadonlySet<number>
+  /** Cells that hint's step would act on. */
+  hintTargets?: ReadonlySet<number>
 }>()
 
 const emit = defineEmits<{ select: [index: number] }>()
@@ -46,6 +50,8 @@ const cells = computed(() =>
       isSameValue: value !== 0 && value === selectedValue.value && props.selectedIndex !== index,
       hasConflict: props.conflicts.has(index),
       isIncorrect: props.incorrect.has(index),
+      isHintPattern: props.hintPattern?.has(index) ?? false,
+      isHintTarget: props.hintTargets?.has(index) ?? false,
     }
   }),
 )

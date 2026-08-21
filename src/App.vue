@@ -8,6 +8,7 @@ import { RouterLink, RouterView } from 'vue-router'
       <h1 class="app__title">Sudoku</h1>
       <nav class="app__nav">
         <RouterLink to="/">Play</RouterLink>
+        <RouterLink to="/enter">Enter</RouterLink>
         <RouterLink to="/solver">Solver</RouterLink>
         <RouterLink to="/stats">Stats</RouterLink>
       </nav>
@@ -37,7 +38,7 @@ import { RouterLink, RouterView } from 'vue-router'
 }
 
 .app__title {
-  font-size: 1.75rem;
+  font-size: 1.4rem;
   font-weight: 600;
   letter-spacing: 0.02em;
 }

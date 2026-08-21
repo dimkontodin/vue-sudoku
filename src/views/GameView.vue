@@ -7,12 +7,15 @@ import { useTimer } from '@/composables/useTimer'
 import { useBoardKeyboard } from '@/composables/useBoardKeyboard'
 import { useGameStorage } from '@/composables/useGameStorage'
 import { useStats } from '@/composables/useStats'
+import { useHints } from '@/composables/useHints'
+import { usePuzzleHandoff } from '@/composables/usePuzzleHandoff'
 import SudokuBoard from '@/components/SudokuBoard.vue'
 import NumberPad from '@/components/NumberPad.vue'
 import GameControls from '@/components/GameControls.vue'
 import GameStatusBar from '@/components/GameStatusBar.vue'
 import DifficultyPicker from '@/components/DifficultyPicker.vue'
 import WinDialog from '@/components/WinDialog.vue'
+import HintPanel from '@/components/HintPanel.vue'
 
 // The only "smart" component: it owns the composables and hands plain props
 // down to components that know nothing about the game.
@@ -22,6 +25,8 @@ const game = useSudoku()
 const timer = useTimer()
 const storage = useGameStorage()
 const stats = useStats()
+const hints = useHints()
+const handoff = usePuzzleHandoff()
 
 const difficulty = ref<Difficulty>('easy')
 const isGenerating = shallowRef(false)
@@ -32,6 +37,9 @@ const instantFeedback = shallowRef(false)
 // "how am I doing right now", not a persistent mode.
 const isChecking = shallowRef(false)
 const isBestTime = shallowRef(false)
+// A hand-entered puzzle has no meaningful generator difficulty, so it is kept
+// out of the stats rather than polluting a difficulty band it never belonged to.
+const isCustom = shallowRef(false)
 
 useBoardKeyboard(game, { isEnabled: () => !isGenerating.value && !hasWon.value })
 
@@ -66,8 +74,10 @@ async function newGame() {
   hasWon.value = false
   showWinDialog.value = false
   isChecking.value = false
+  hints.reset()
   try {
     game.load(await client.generate(difficulty.value))
+    isCustom.value = false
     stats.recordStart(difficulty.value)
     timer.reset()
     timer.start()
@@ -80,20 +90,55 @@ async function newGame() {
 function restart() {
   game.reset()
   isChecking.value = false
+  hints.reset()
   hasWon.value = false
   timer.reset()
   timer.start()
 }
 
+/**
+ * One press names the technique, the next shows where, the third applies it.
+ * Spending a hint should teach the pattern, not just fill a cell.
+ */
 function hint() {
+  hints.next(game.board.value, game.notes.value)
+}
+
+/** Applies the hinted step through the game, so it lands in history. */
+function applyHint() {
+  const step = hints.step.value
+  if (!step) return
+
+  // Tell the engine first: an elimination-only step may leave the board
+  // untouched, and without this the next hint would repeat it forever.
+  hints.apply(step)
+  suppressHintReset = true
+
+  for (const { index, digit } of step.placements) {
+    game.select(index)
+    game.setValue(digit, index)
+  }
+  for (const { index, digit } of step.eliminations) {
+    if (game.notesFor(index).includes(digit)) game.toggleNote(digit, index)
+  }
+
+  // Close the panel, but keep the accumulated candidates so the run continues.
+  hints.reset(false)
+}
+
+/** The old behaviour, kept as the explicit give-up button. */
+function revealCell() {
   const selected = game.selectedIndex.value
-  // Fall back to the first empty cell so the button always does something.
   if (selected === null || game.isGiven(selected) || (game.board.value[selected] ?? 0) !== 0) {
     const firstEmpty = game.board.value.findIndex((value) => value === 0)
     if (firstEmpty === -1) return
     game.select(firstEmpty)
   }
   game.reveal()
+}
+
+function fillNotes() {
+  game.fillNotes()
 }
 
 // Save on every board change, debounced: a burst of keystrokes would otherwise
@@ -106,8 +151,15 @@ function cancelPendingSave() {
   saveTimer = null
 }
 
+// Set while applyHint() is editing, so its own writes do not throw away the
+// candidate state it just updated.
+let suppressHintReset = false
+
 watch([game.board, game.notes], () => {
   isChecking.value = false
+  // A standing hint describes the board as it was, so any edit invalidates it.
+  if (suppressHintReset) suppressHintReset = false
+  else hints.reset()
   cancelPendingSave()
   saveTimer = setTimeout(persist, 400)
 })
@@ -126,13 +178,15 @@ watch(game.isSolved, (solved) => {
   )?.bestMs
   isBestTime.value = previousBest === null || timer.elapsedMs.value < (previousBest ?? Infinity)
 
-  stats.recordWin({
-    difficulty: difficulty.value,
-    timeMs: timer.elapsedMs.value,
-    hintsUsed: game.hintsUsed.value,
-    mistakes: game.mistakes.value,
-    date: new Date().toISOString(),
-  })
+  if (!isCustom.value) {
+    stats.recordWin({
+      difficulty: difficulty.value,
+      timeMs: timer.elapsedMs.value,
+      hintsUsed: game.hintsUsed.value,
+      mistakes: game.mistakes.value,
+      date: new Date().toISOString(),
+    })
+  }
 
   // Drop the save the final move just scheduled, or it would land 400ms from
   // now and write the solved board straight back over this clear().
@@ -142,6 +196,19 @@ watch(game.isSolved, (solved) => {
 })
 
 onMounted(() => {
+  // A puzzle handed over from /enter wins over any saved game: the player
+  // just asked for it explicitly.
+  const entered = handoff.take()
+  if (entered) {
+    game.load(entered)
+    difficulty.value = 'hard'
+    isCustom.value = true
+    timer.reset()
+    timer.start()
+    persist()
+    return
+  }
+
   const saved = storage.restore()
   if (saved) {
     difficulty.value = saved.difficulty
@@ -178,6 +245,8 @@ onMounted(() => {
       :selected-index="game.selectedIndex.value"
       :conflicts="game.conflicts.value"
       :incorrect="incorrect"
+      :hint-pattern="hints.patternCells.value"
+      :hint-targets="hints.targetCells.value"
       @select="game.select($event)"
     />
 
@@ -200,11 +269,24 @@ onMounted(() => {
       @hint="hint"
       @check="isChecking = true"
       @toggle-instant-feedback="instantFeedback = !instantFeedback"
+      @fill-notes="fillNotes"
       @restart="restart"
     />
 
+    <HintPanel
+      :stage="hints.stage.value"
+      :stuck="hints.stuck.value"
+      :headline="hints.headline.value"
+      :detail="hints.detail.value"
+      :needs-notes="(hints.step.value?.placements.length ?? 0) === 0"
+      @next="hint"
+      @apply="applyHint"
+      @dismiss="hints.reset()"
+    />
+
     <p class="game__hint">
-      Arrows move · 1–9 enter · <kbd>N</kbd> notes · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo
+      <button type="button" class="game__reveal" @click="revealCell">Reveal a cell</button>
+      · Arrows move · 1–9 enter · <kbd>N</kbd> notes · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo
     </p>
 
     <WinDialog
@@ -256,6 +338,15 @@ onMounted(() => {
   color: var(--color-text-muted);
   font-size: 0.75rem;
   text-align: center;
+
+  button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-primary);
+    font: inherit;
+    text-decoration: underline;
+  }
 
   kbd {
     padding: 1px 4px;

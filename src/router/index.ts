@@ -10,6 +10,13 @@ const router = createRouter({
       component: GameView,
     },
     {
+      path: '/enter',
+      name: 'enter',
+      // Lazy: pulls in the logical solver for grading, which the game view
+      // only needs once a hint is asked for.
+      component: () => import('@/views/EnterView.vue'),
+    },
+    {
       path: '/solver',
       name: 'solver',
       // Lazy-loaded: the visualiser pulls in the worker client, which the

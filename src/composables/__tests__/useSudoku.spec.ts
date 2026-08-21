@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CELLS } from '@/core/constants'
 import { peersOf } from '@/core/grid'
 import { generate } from '@/core/generator'
+import { computeCandidates } from '@/core/candidates'
 import { hasNote } from '@/core/notes'
 import type { Puzzle } from '@/core/types'
 import { useSudoku } from '../useSudoku'
@@ -515,6 +516,81 @@ describe('useSudoku', () => {
       game.setValue(7)
 
       expect(board[firstEmpty]).toBe(0)
+    })
+  })
+
+  describe('fillNotes', () => {
+    it('fills every empty cell with its legal candidates', () => {
+      const source = generate('medium')
+      const game = useSudoku(source)
+      const expected = computeCandidates(source.puzzle)
+
+      expect(game.fillNotes()).toBe(true)
+
+      const wrong: number[] = []
+      for (let index = 0; index < CELLS; index++) {
+        if (source.puzzle[index]) continue
+        if (game.notes.value[index] !== expected[index]) wrong.push(index)
+      }
+      expect(wrong).toEqual([])
+    })
+
+    it('leaves filled cells without notes', () => {
+      const source = generate('easy')
+      const game = useSudoku(source)
+      game.fillNotes()
+
+      const noted = [...source.puzzle.keys()].filter(
+        (index) => source.puzzle[index] !== 0 && game.notes.value[index] !== 0,
+      )
+      expect(noted).toEqual([])
+    })
+
+    it('never suggests a candidate that contradicts the solution', () => {
+      const source = generate('hard')
+      const game = useSudoku(source)
+      game.fillNotes()
+
+      const missing = [...source.puzzle.keys()].filter(
+        (index) =>
+          source.puzzle[index] === 0 && !game.notesFor(index).includes(source.solution[index]!),
+      )
+      expect(missing).toEqual([])
+    })
+
+    it('undoes in a single step, not one per cell', () => {
+      const source = generate('medium')
+      const game = useSudoku(source)
+      game.fillNotes()
+
+      expect(game.canUndo.value).toBe(true)
+      game.undo()
+
+      const remaining = [...game.notes.value].filter((mask) => mask !== 0)
+      expect(remaining).toEqual([])
+      expect(game.canUndo.value).toBe(false)
+    })
+
+    it('reports false when there is nothing to change', () => {
+      const source = generate('easy')
+      const game = useSudoku(source)
+
+      expect(game.fillNotes()).toBe(true)
+      expect(game.fillNotes()).toBe(false)
+    })
+
+    it('stays consistent as digits are placed, since peers lose the note', () => {
+      const source = generate('medium')
+      const game = useSudoku(source)
+      game.fillNotes()
+
+      const target = source.puzzle.findIndex((value) => value === 0)
+      const answer = source.solution[target]!
+      game.select(target)
+      game.setValue(answer)
+
+      const stale = peersOf(target).filter((peer) => game.notesFor(peer).includes(answer))
+      expect(stale).toEqual([])
     })
   })
 
