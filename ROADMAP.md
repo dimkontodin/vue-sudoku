@@ -112,21 +112,70 @@ finishing in a background tab would never show its result.
 
 ---
 
-## Phase 3 — Composables
+## Phase 3 — Composables ✅
 
-- [ ] `composables/useSudoku.ts` — `board`, `puzzle`, `solution`, `notes`, `selectedIndex`
-  - [ ] `setValue`, `toggleNote`, `erase`, `select`
-  - [ ] computed `conflicts`, `isSolved`, `remainingCounts`
-  - [ ] given cells are immutable — enforced in exactly one place
-  - [ ] ⚠️ typed arrays aren't deeply reactive — use `shallowRef` + reassign
-- [ ] `composables/useHistory.ts` — generic `push`/`undo`/`redo`/`canUndo`/`canRedo`, diff-based
-- [ ] Route every mutation in `useSudoku` through one internal `applyChange()`
-- [ ] `composables/useTimer.ts` — `elapsed`, `start`/`pause`/`reset`, cleanup in `onScopeDispose`
-  - [ ] auto-pause on `visibilitychange`
-- [ ] `composables/useBoardKeyboard.ts` — arrows, `1-9`, `Backspace`/`Delete`, `n` for note mode
-- [ ] tests: drive a full game through the composables with zero rendering
+- [x] `composables/useHistory.ts` — generic `push`/`undo`/`redo`/`canUndo`/`canRedo`,
+      opaque entries, capped at 200 by default
+- [x] `composables/useSudoku.ts` — `board`, `notes`, `puzzle`, `solution`,
+      `selectedIndex`, `noteMode`
+  - [x] `setValue`, `toggleNote`, `inputDigit`, `erase`, `reveal`, `select`, `moveSelection`
+  - [x] computed `conflicts`, `isSolved`, `remainingCounts`, `selectedValue`
+  - [x] given cells immutable — enforced by one `isGiven()` check per action
+  - [x] every mutation routed through a single `commit()`
+- [x] `composables/useTimer.ts` — `elapsedMs`, `formatted`, start/pause/reset/toggle,
+      `setElapsed` for restoring a saved game, auto-pause on tab hide
+- [x] `composables/useBoardKeyboard.ts` — arrows, `1-9`, `Backspace`/`Delete`/`0`,
+      `n`, `Escape`, `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`
+- [x] tests: 105 total, a full generated puzzle played to solved with nothing rendered
 
-**Gate:** a complete game can be played in tests without mounting a single component.
+**Gate:** ✅ 105 tests green in ~810ms. Only the keyboard spec loads jsdom
+(via a `// @vitest-environment jsdom` docblock) and it accounts for ~530ms of
+that on its own — the per-file opt-in from Phase 1 paying off.
+
+### Design decisions worth remembering
+
+- **A `Move` is an array of cell changes, not one change.** Placing a digit also
+  strips that digit from the notes of all 20 peers; undo has to revert the whole
+  batch atomically. Hints reuse the same shape, and so will anything else that
+  touches several cells at once.
+- **`shallowRef` + clone-on-write, never `reactive()`.** Vue's deep reactivity
+  proxies objects, and a proxied `Uint8Array` breaks outright — its methods rely
+  on internal slots a `Proxy` does not forward. `shallowRef` never proxies its
+  value, so cloning 81 bytes per keystroke is what makes reactivity work at all
+  here. This is the reactivity caveat the plan warned about, met head-on.
+- **State is returned as `Readonly<ShallowRef<T>>` by cast only**, with no runtime
+  `readonly()` — wrapping the board at runtime would reintroduce exactly the
+  proxy problem above.
+- **`useHistory` stays a plain composable and stores opaque entries.** It hands
+  a `Move` back and lets the caller apply or revert it, which is what keeps it
+  reusable for anything. Contrast with Phase 6, where shared game state moves
+  into a store but this does not.
+- **The timer derives elapsed time from wall-clock timestamps**, not by counting
+  ticks, so a throttled interval changes only the refresh rate, never the value.
+- **`Array.prototype.at()` is unavailable**: `tsconfig.vitest.json` sets
+  `lib: []`, so ES2022 methods are out of scope for anything reachable from a
+  spec. Plain indexing plus `noUncheckedIndexedAccess` gives the same result.
+
+Not yet wired into the UI — `GameView.vue` is still the Phase 2 solver harness.
+That is Phase 4's job; the gate here was proven by tests instead.
+
+### Fixed after Phase 3
+
+- **Stale solved board.** Solving once then pressing "New puzzle" kept the old
+  solved grid on screen. `useSolver` held the final `progress` forever, and
+  `cancel()` returns early when no request is active, so nothing cleared it.
+  Added `useSolver.reset()` and called it from `newPuzzle()`. Three regression
+  tests in `useSolver.spec.ts` cover it (verified failing before the fix).
+- **Fallback could call back synchronously.** With no `Worker`, a fast solve
+  finished inside the first batch before `runSolve` hit any `await`, so
+  completion nulled `activeRequestId` *before* `solve()` returned its id. The
+  fallback now defers to a microtask, matching worker semantics exactly.
+- **Modern JS enabled.** `tsconfig.app.json` and `tsconfig.vitest.json` now set
+  `lib: ["ESNext", "DOM", "DOM.Iterable"]`. @vue/tsconfig pins ES2022 and
+  create-vue left the vitest config at `lib: []`, which silently dropped
+  ES2022+ built-ins from any file a spec imported.
+- **Dev server port.** `.claude/launch.json` sets `autoPort: true` and
+  `vite.config.ts` honours `process.env.PORT`, so a busy 5173 is no longer fatal.
 
 ---
 
@@ -196,7 +245,7 @@ pnpm lint && pnpm type-check && pnpm test:unit --run && pnpm build
 2. [x] `feat(core): sudoku types, grid helpers, validation + tests`
 3. [x] `feat(core): backtracking solver and unique-puzzle generator + tests`
 4. [x] `feat(workers): offload generation to a web worker`
-5. [ ] `feat(composables): useSudoku, useHistory, useTimer, keyboard`
+5. [x] `feat(composables): useSudoku, useHistory, useTimer, keyboard`
 6. [ ] `feat(ui): board, cell, number pad, game view`
 7. [ ] `feat: hints, auto-check, persistence, stats`
 8. [ ] `refactor(state): move game state into a pinia store`

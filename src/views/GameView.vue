@@ -35,7 +35,9 @@ const cells = computed(() => {
 });
 
 async function newPuzzle() {
-  solver.cancel();
+  // reset(), not cancel(): a finished run has no active request to cancel, so
+  // its solved board would otherwise stay on screen over the new puzzle.
+  solver.reset();
   isGenerating.value = true;
   try {
     const result = await solver.generate(difficulty.value);

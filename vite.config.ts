@@ -15,6 +15,11 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    // Honour the port the harness assigns via PORT, falling back to Vite's
+    // default when run directly.
+    port: Number(process.env.PORT) || 5173,
+  },
   css: {
     preprocessorOptions: {
       scss: {

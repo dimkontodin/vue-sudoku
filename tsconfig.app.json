@@ -3,6 +3,11 @@
   "include": ["env.d.ts", "src/**/*", "src/**/*.vue"],
   "exclude": ["src/**/__tests__/*"],
   "compilerOptions": {
+    // @vue/tsconfig pins lib to ES2022 and leaves newer built-ins to the user.
+    // This project targets modern browsers only, so opt into the current
+    // language level rather than polyfilling.
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+
     // Extra safety for array and object lookups, but may have false positives.
     "noUncheckedIndexedAccess": true,
 

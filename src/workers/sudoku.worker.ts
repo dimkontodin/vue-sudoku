@@ -7,8 +7,8 @@ import type { WorkerRequest, WorkerResponse } from './protocol'
 // DOM's declarations, so describe just the surface this file uses — which has
 // the bonus of type-checking every message against the protocol.
 interface WorkerScope {
-  postMessage: (message: WorkerResponse) => void;
-  onmessage: ((event: MessageEvent<WorkerRequest>) => void) | null;
+  postMessage: (message: WorkerResponse) => void
+  onmessage: ((event: MessageEvent<WorkerRequest>) => void) | null
 }
 
 const ctx = self as unknown as WorkerScope
@@ -29,7 +29,12 @@ async function handle(request: WorkerRequest): Promise<void> {
 
     case 'generate': {
       const { puzzle, solution } = generate(request.difficulty)
-      post({ type: 'generated', requestId: request.requestId, puzzle, solution })
+      post({
+        type: 'generated',
+        requestId: request.requestId,
+        puzzle,
+        solution,
+      })
       return
     }
 
@@ -43,11 +48,24 @@ async function handle(request: WorkerRequest): Promise<void> {
         isCancelled: () => cancelled.has(requestId),
         onCancelled: () => {
           cancelled.delete(requestId)
-          post({ type: 'cancelled', requestId })
+          post({
+            type: 'cancelled',
+            requestId,
+          })
         },
-        onProgress: (progress) => post({ type: 'progress', requestId, ...progress }),
+        onProgress: (progress) =>
+          post({
+            type: 'progress',
+            requestId,
+            ...progress,
+          }),
+
         onDone: (solved, progress) =>
-          post({ type: solved ? 'solved' : 'failed', requestId, ...progress }),
+          post({
+            type: solved ? 'solved' : 'failed',
+            requestId,
+            ...progress,
+          }),
       })
       return
     }
@@ -61,7 +79,9 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
     post({
       type: 'error',
       requestId: request.requestId,
-      message: error instanceof Error ? error.message : String(error),
+      message: error instanceof Error
+        ? error.message
+        : String(error),
     })
   })
 }
