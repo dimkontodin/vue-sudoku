@@ -270,7 +270,122 @@ showed 4 started / 3 won / 75% after winning three and abandoning one.
 
 ---
 
-## Phase 6 — The Pinia exercise
+## Phase 6 — Candidates, logical hints, and hand-entered puzzles
+
+Three features on one foundation. Full technique specs live in
+[docs/solving-techniques.md](docs/solving-techniques.md); this is the tracker.
+
+### 6a — The candidate engine (foundation for everything else)
+
+- [ ] `core/candidates.ts` — `computeCandidates(board): Uint16Array`
+  - Basic exclusion only: peers in row, column, box. Nothing cleverer.
+  - Returns the **same bitmask representation as `notes`**, which is what makes
+    auto-fill a one-liner and lets the logical solver share the structure.
+  - Verified up front against the `candidatesFor` helper currently private
+    inside `solver.ts`: identical on every empty cell across generated experts.
+- [ ] Refactor `solver.ts` to use it (measure first — it is the hot path)
+- [ ] **Auto-fill notes** — `game.fillNotes()` writing `computeCandidates(board)`
+      straight into `notes`, as one undoable `Move`
+  - [ ] Button in `GameControls`, and a "keep notes updated" toggle
+  - [ ] Placing a digit already strips peers' notes (Phase 3), so an auto-filled
+        grid stays correct as you play
+
+### 6b — Logical solver and graded hints
+
+Techniques in escalating tiers, cheapest first. A hint offers the *easiest*
+pattern currently available.
+
+- [ ] `core/techniques/` — one module per technique, all returning a
+      `TechniqueStep` (never a boolean): placements, eliminations, **cells to
+      highlight**, and an explanation string
+- [ ] `core/logicalSolver.ts` — apply the cheapest technique that fires, then
+      **restart the cascade from the top**
+- [ ] Tier 0: Naked Single, Hidden Single
+- [ ] Tier 1: Pointing, Box/Line Reduction, Naked Pair/Triple, Hidden Pair
+- [ ] Tier 2: generic `findFish(digit, n, orientation)` → X-Wing, Swordfish, Jellyfish
+- [ ] Tier 3: Simple Colouring, Y-Wing, XYZ-Wing, W-Wing, BUG+1
+- [ ] Grading: HoDoKu-style hybrid — sum of step scores, floored at the tier of
+      the hardest technique used
+- [ ] Replace the current reveal-a-digit hint with a three-step ladder:
+      *name the technique → highlight the cells → apply it*
+- [ ] Keep `reveal()` as the final "just tell me" fallback
+
+Tier 4 (Unique Rectangles, Empty Rectangle) and Tier 5 (chains) are explicitly
+**out of scope** — see the reference doc for why, and for the list of techniques
+not worth building at all.
+
+### 6c — Hand-entered puzzles
+
+- [ ] `views/EnterView.vue` at `/enter` — type or paste an 81-char string
+- [ ] `core/parse.ts` — accept `.` `0` and whitespace, reject anything else
+- [ ] Validation ladder, built entirely on existing primitives:
+
+| check | verdict |
+| --- | --- |
+| `conflictsIn(board).size > 0` | conflicting clues |
+| fewer than 17 clues | can never be unique |
+| `countSolutions(board, 2, budget)` → `0` | unsolvable |
+| → `1` | good puzzle |
+| → `2` | ambiguous, multiple solutions |
+| → `-1` | budget exceeded, too ambiguous to check |
+
+- [ ] Grade the accepted puzzle with the 6b solver and show which techniques it needs
+- [ ] Feed it into the existing game via `game.load()`
+
+**Scanning a photo of a puzzle is NOT in this phase.** Grid detection,
+perspective correction and digit recognition is a project of its own, an order of
+magnitude past typing 81 characters. Deferred to its own phase.
+
+### Gate
+
+- [ ] Auto-notes fills exactly the legal candidates, and undoes as one move
+- [ ] The logical solver solves every generated puzzle without guessing, and its
+      grade correlates with the generator's difficulty label
+- [ ] Hints always offer the easiest available technique, never a harder one
+- [ ] A hand-entered puzzle is correctly classified in all six cases above
+
+### Things to get right
+
+- **Uniqueness gating.** Unique Rectangles and BUG assume exactly one solution.
+  On a hand-entered ambiguous grid they produce *wrong* eliminations. Since 6c
+  lets users enter arbitrary grids, any uniqueness-dependent technique must be
+  gated behind a confirmed `countSolutions(...) === 1` — this is the one place
+  6b and 6c genuinely interact.
+- **Naked subsets are about the union, not identical sets.** A naked triple can
+  be `{3,3,2}` or `{3,2,2}` or `{2,2,2}` candidates per cell. Matching identical
+  candidate sets misses most of them.
+- **Fish base units need 2..N positions, not exactly N.** Generalising X-Wing's
+  "exactly two" to Swordfish finds only the 2-2-2 case and misses most of them.
+- **Restart the cascade after every step**, or you will credit advanced
+  techniques for eliminations that a re-run of singles would have found — which
+  silently inflates every difficulty grade.
+- **Redundant-as-logic is not redundant-as-hint.** Every X-Wing is also a
+  Simple Colouring elimination, and the wings all fall out of XY-Chains. Build
+  them anyway: "X-Wing on 7s in rows 2 and 6" teaches; "alternating inference
+  chain" does not.
+
+### Benchmark fixtures
+
+- [ ] Add named hard puzzles as test fixtures and a node-count benchmark
+
+Baseline for comparison — nodes visited on generated puzzles, MRV versus a naive
+in-order cell picker (15 puzzles per difficulty):
+
+| difficulty | MRV median | MRV max | in-order median | in-order max |
+| --- | --- | --- | --- | --- |
+| easy | 42 | 42 | 57 | 478 |
+| medium | 50 | 152 | 1,429 | 5,229 |
+| hard | 177 | 1,218 | 12,834 | 61,682 |
+| expert | 204 | 1,393 | 9,697 | 284,540 |
+
+MRV buys 50–200× on the median. On easy its median and max are both exactly 42 —
+41 empty cells plus the terminal node, i.e. **zero backtracking**. The open
+question for the adversarial grids is not whether they are slow, but whether MRV
+collapses them the way it collapses these.
+
+---
+
+## Phase 7 — The Pinia exercise
 
 Only after the game is complete and green.
 
@@ -304,4 +419,7 @@ pnpm lint && pnpm type-check && pnpm test:unit --run && pnpm build
 5. [x] `feat(composables): useSudoku, useHistory, useTimer, keyboard`
 6. [x] `feat(ui): board, cell, number pad, game view`
 7. [x] `feat: hints, auto-check, persistence, stats`
-8. [ ] `refactor(state): move game state into a pinia store`
+8. [ ] `feat(core): candidate grid + auto-fill notes`
+9. [ ] `feat(core): logical solver with graded technique hints`
+10. [ ] `feat: hand-entered puzzles`
+11. [ ] `refactor(state): move game state into a pinia store`
