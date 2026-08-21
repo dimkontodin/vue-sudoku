@@ -222,19 +222,51 @@ win clears the banner and resets the clock. 133 tests green.
 
 ---
 
-## Phase 5 — Remaining features
+## Phase 5 — Remaining features ✅
 
-- [ ] **Undo/redo** — buttons + `Ctrl+Z` / `Ctrl+Y` (logic already exists from phase 3)
-- [ ] **Hints** — reveal correct digit from `solution`, count hints, push through history
-- [ ] **Auto-check** — "check" button + optional instant feedback; mistake counter
-- [ ] **Persistence** — `useGameStorage`, debounced `watch` → `localStorage`, restore on mount
-  - [ ] version the payload (`{ v: 1, ... }`) so format changes don't crash old saves
-- [ ] **Stats** — `useStats` records `{ difficulty, timeMs, hintsUsed, date }` per win
-- [ ] `views/StatsView.vue` — games played, win rate, best time per difficulty
-- [ ] `components/WinDialog.vue` — `<Teleport to="body">` + `<Transition>`
-- [ ] `components/GameControls.vue` — new game, undo/redo, hint, check
+- [x] **Undo/redo** — buttons plus `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y` (logic from Phase 3)
+- [x] **Hints** — `reveal()` fills the correct digit, counts toward `hintsUsed`,
+      and is undoable like any other move
+- [x] **Auto-check** — a Check button for a one-off look, plus a persistent
+      Auto-check mode; `mistakes` counts every wrong digit entered
+- [x] **Persistence** — `useGameStorage`, debounced 400ms, versioned payload,
+      restored on mount
+- [x] **Stats** — `useStats` records `{ difficulty, timeMs, hintsUsed, mistakes, date }`
+- [x] `views/StatsView.vue` — totals, per-difficulty table, recent wins, clear
+- [x] `components/WinDialog.vue` — `<Teleport to="body">` + `<Transition>`, focus moved
+      into the dialog on open, reduced-motion respected
+- [x] `components/GameControls.vue` — hint, check, auto-check, restart
+- [x] `utils/storage.ts` — defensive JSON localStorage shared by both composables
 
-**Gate:** reload mid-game restores the board, notes and timer exactly.
+**Gate:** ✅ verified in the browser with a real page reload — board, notes,
+mistakes, hints and difficulty all restored; timer restore confirmed separately
+by injecting a known elapsed time (2:05 in, 2:10 after ~5s running). Stats
+showed 4 started / 3 won / 75% after winning three and abandoning one.
+170 tests green.
+
+### Things learned the hard way
+
+- **The debounced save raced the win handler.** Winning called `storage.clear()`,
+  then the save scheduled by that same final move landed 400ms later and wrote
+  the solved board straight back. The completed-board guard in `restore()` hid it
+  from the user entirely — the only symptom was stale data sitting in storage
+  forever. Fixed by cancelling the pending timer and by refusing to persist once
+  `hasWon` is set. **A debounced write needs an explicit cancel on every path
+  that invalidates it.**
+- **`winRate` clamped a nonsense value instead of fixing it.** With wins but no
+  recorded starts (win a restored game after clearing stats) it reported
+  "2 wins, 0%". The denominator is now `max(started, won)`, so the rate is ≤ 1
+  by construction rather than by `Math.min`.
+- **Storage validation is not optional.** Every field is checked on read —
+  wrong version, wrong array length, unknown difficulty and missing keys all
+  degrade to "no saved game". A stored payload is untrusted input written by an
+  older version of your own code.
+- **History is deliberately not persisted.** A move stack only means something
+  against the board it was recorded on; restoring it would let undo run past
+  the point the save was taken.
+- **The console errors during development were HMR artifacts**, not runtime bugs
+  — verified by reloading clean and repeating every navigation, including
+  unmounting the teleported dialog mid-route-change. Zero errors.
 
 ---
 
@@ -271,5 +303,5 @@ pnpm lint && pnpm type-check && pnpm test:unit --run && pnpm build
 4. [x] `feat(workers): offload generation to a web worker`
 5. [x] `feat(composables): useSudoku, useHistory, useTimer, keyboard`
 6. [x] `feat(ui): board, cell, number pad, game view`
-7. [ ] `feat: hints, auto-check, persistence, stats`
+7. [x] `feat: hints, auto-check, persistence, stats`
 8. [ ] `refactor(state): move game state into a pinia store`

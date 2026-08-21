@@ -1,37 +1,44 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { colOf, rowOf } from '@/core/grid';
-import { hasNote } from '@/core/notes';
+import { computed } from 'vue'
+import { colOf, rowOf } from '@/core/grid'
+import { hasNote } from '@/core/notes'
 
 // Deliberately knows nothing about Sudoku rules. It is told how to look and
 // reports that it was clicked; every decision behind these props is made by
 // useSudoku. That is what makes it reusable and trivially testable.
 const props = defineProps<{
-  index: number;
-  value: number;
+  index: number
+  value: number
   /** Pencil-mark bitmask. A number rather than an array so nothing allocates. */
-  notes: number;
-  isGiven: boolean;
-  isSelected: boolean;
+  notes: number
+  isGiven: boolean
+  isSelected: boolean
   /** Shares a row, column or box with the selected cell. */
-  isPeer: boolean;
+  isPeer: boolean
   /** Holds the same digit as the selected cell. */
-  isSameValue: boolean;
-  hasConflict: boolean;
-}>();
+  isSameValue: boolean
+  hasConflict: boolean
+  /** Disagrees with the solution. Only surfaced when the user asked to check. */
+  isIncorrect: boolean
+}>()
 
-const emit = defineEmits<{ select: [index: number] }>();
+const emit = defineEmits<{ select: [index: number] }>()
 
-const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 const label = computed(() => {
-  const position = `Row ${rowOf(props.index) + 1}, column ${colOf(props.index) + 1}`;
-  if (props.value) return `${position}, ${props.value}${props.isGiven ? ', given' : ''}`;
+  const position = `Row ${rowOf(props.index) + 1}, column ${colOf(props.index) + 1}`
+  if (props.value) {
+    const marks = [props.isGiven ? 'given' : null, props.isIncorrect ? 'incorrect' : null].filter(
+      Boolean,
+    )
+    return [position, String(props.value), ...marks].join(', ')
+  }
 
-  const noted = digits.filter((digit) => hasNote(props.notes, digit));
-  if (noted.length) return `${position}, empty, notes ${noted.join(' ')}`;
-  return `${position}, empty`;
-});
+  const noted = digits.filter((digit) => hasNote(props.notes, digit))
+  if (noted.length) return `${position}, empty, notes ${noted.join(' ')}`
+  return `${position}, empty`
+})
 </script>
 
 <template>
@@ -44,6 +51,7 @@ const label = computed(() => {
       'is-peer': isPeer,
       'is-same-value': isSameValue,
       'has-conflict': hasConflict,
+      'is-incorrect': isIncorrect,
     }"
     :aria-label="label"
     :aria-pressed="isSelected"
@@ -97,6 +105,16 @@ const label = computed(() => {
   &.has-conflict {
     background: color-mix(in srgb, var(--color-danger) 18%, var(--color-surface-raised));
     color: var(--color-danger);
+  }
+
+  // Declared after .is-selected so a wrong answer stays visible even while
+  // the cell is the active one.
+  &.is-incorrect {
+    background: color-mix(in srgb, var(--color-danger) 22%, var(--color-surface-raised));
+    color: var(--color-danger);
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
   }
 
   &.is-selected {

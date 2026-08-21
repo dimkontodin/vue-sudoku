@@ -1,36 +1,40 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { CELLS } from '@/core/constants';
-import { peersOf } from '@/core/grid';
-import type { Board, Notes } from '@/core/types';
-import SudokuCell from './SudokuCell.vue';
+import { computed } from 'vue'
+import { CELLS } from '@/core/constants'
+import { peersOf } from '@/core/grid'
+import type { Board, Notes } from '@/core/types'
+import SudokuCell from './SudokuCell.vue'
 
 const props = defineProps<{
-  board: Board;
-  notes: Notes;
+  board: Board
+  notes: Notes
   /** The original clues — a non-zero entry marks a given. */
-  puzzle: Board;
-  selectedIndex: number | null;
-  conflicts: Set<number>;
-}>();
+  puzzle: Board
+  selectedIndex: number | null
+  // ReadonlySet, not Set: the board only ever reads these, and saying so lets
+  // callers pass a shared frozen empty set instead of allocating one.
+  conflicts: ReadonlySet<number>
+  /** Indices to flag as wrong. Empty unless the player asked to be checked. */
+  incorrect: ReadonlySet<number>
+}>()
 
-const emit = defineEmits<{ select: [index: number] }>();
+const emit = defineEmits<{ select: [index: number] }>()
 
 // Peer highlighting is a presentation concern, so it is derived here rather
 // than stored in useSudoku. A Set keeps the per-cell lookup O(1) instead of
 // scanning 20 peers for each of the 81 cells.
 const peerIndices = computed(() => {
-  if (props.selectedIndex === null) return new Set<number>();
-  return new Set(peersOf(props.selectedIndex));
-});
+  if (props.selectedIndex === null) return new Set<number>()
+  return new Set(peersOf(props.selectedIndex))
+})
 
 const selectedValue = computed(() =>
   props.selectedIndex === null ? 0 : (props.board[props.selectedIndex] ?? 0),
-);
+)
 
 const cells = computed(() =>
   Array.from({ length: CELLS }, (_, index) => {
-    const value = props.board[index] ?? 0;
+    const value = props.board[index] ?? 0
     return {
       index,
       value,
@@ -41,9 +45,10 @@ const cells = computed(() =>
       // Only highlight matching digits other than the selected cell itself.
       isSameValue: value !== 0 && value === selectedValue.value && props.selectedIndex !== index,
       hasConflict: props.conflicts.has(index),
-    };
+      isIncorrect: props.incorrect.has(index),
+    }
   }),
-);
+)
 </script>
 
 <template>
