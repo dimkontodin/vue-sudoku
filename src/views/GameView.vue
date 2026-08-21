@@ -75,16 +75,23 @@ async function newGame() {
   showWinDialog.value = false
   isChecking.value = false
   hints.reset()
+  timer.pause()
+  timer.reset()
   try {
     game.load(await client.generate(difficulty.value))
     isCustom.value = false
     stats.recordStart(difficulty.value)
-    timer.reset()
     timer.start()
     persist()
   } finally {
     isGenerating.value = false
   }
+}
+
+function selectDifficulty(next: Difficulty) {
+  if (next === difficulty.value) return
+  difficulty.value = next
+  newGame()
 }
 
 function restart() {
@@ -224,7 +231,11 @@ onMounted(() => {
 <template>
   <section class="game">
     <div class="game__toolbar">
-      <DifficultyPicker v-model="difficulty" :disabled="isGenerating" />
+      <DifficultyPicker
+        :model-value="difficulty"
+        :disabled="isGenerating"
+        @update:model-value="selectDifficulty"
+      />
       <button type="button" class="game__new" :disabled="isGenerating" @click="newGame">
         {{ isGenerating ? 'Generating…' : 'New game' }}
       </button>
