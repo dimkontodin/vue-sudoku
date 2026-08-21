@@ -366,22 +366,51 @@ magnitude past typing 81 characters. Deferred to its own phase.
 
 ### Benchmark fixtures
 
-- [ ] Add named hard puzzles as test fixtures and a node-count benchmark
+Grids, provenance and full measurements in [docs/hard-puzzles.md](docs/hard-puzzles.md).
 
-Baseline for comparison — nodes visited on generated puzzles, MRV versus a naive
-in-order cell picker (15 puzzles per difficulty):
+- [ ] `core/__tests__/fixtures.ts` — the named hard puzzles as 81-char strings
+- [ ] Regression test: the anti-backtracking grid must stay in the tens of
+      thousands of nodes, not millions (i.e. MRV is actually engaged)
+- [ ] Once hidden singles exist, the same grid must need **zero** search
 
-| difficulty | MRV median | MRV max | in-order median | in-order max |
-| --- | --- | --- | --- | --- |
-| easy | 42 | 42 | 57 | 478 |
-| medium | 50 | 152 | 1,429 | 5,229 |
-| hard | 177 | 1,218 | 12,834 | 61,682 |
-| expert | 204 | 1,393 | 9,697 | 284,540 |
+Measured against our solver as shipped:
 
-MRV buys 50–200× on the median. On easy its median and max are both exactly 42 —
-41 empty cells plus the terminal node, i.e. **zero backtracking**. The open
-question for the adversarial grids is not whether they are slow, but whether MRV
-collapses them the way it collapses these.
+| puzzle | our MRV | in-order |
+| --- | --- | --- |
+| anti-backtracking | 58,234 | 69,175,317 |
+| AI Escargot | 220 | 8,970 |
+| **Fata Morgana** | **74,020** | 1,984,466 |
+| Platinum Blonde | 2,886 | 1,114,772 |
+| Norvig grid2 | 719 | 9,727,397 |
+| *generated expert, median* | *204* | *9,697* |
+
+Everything solves in under 180 ms, so none of this threatens the UI — these are
+regression fixtures, not performance problems.
+
+**The finding that matters for this phase.** The two axes of difficulty are
+independent, and singles-only propagation shows it starkly:
+
+| puzzle | solved by naked + hidden singles alone? |
+| --- | --- |
+| anti-backtracking | **yes — 64/64 cells, zero search** |
+| AI Escargot | no — 1/64 |
+| Fata Morgana | no — 1/64 |
+| Platinum Blonde | no — 1/64 |
+
+The grid famous for defeating brute force falls entirely to the two *easiest*
+techniques in the game; it would rate about SE 2.3, an easy newspaper puzzle.
+The genuinely hard ones stall after a single placement. AI Escargot costs a
+naive solver less than a newspaper puzzle while being brutal for humans.
+
+So 6b's logical solver is not only a hint engine — **wiring singles propagation
+into the backtracking solver should take the anti-backtracking grid from 58,234
+nodes to 0.** It will do almost nothing for Fata Morgana, which is our real
+worst case and needs the advanced techniques.
+
+One caution carried from the research: the same puzzle rotated through its 8
+symmetries spans a **1,600× range** in naive node count. Any "hardest for brute
+force" claim that omits the orientation is meaningless — including ours, so
+fixtures must pin the orientation.
 
 ---
 
