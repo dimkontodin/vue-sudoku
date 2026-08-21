@@ -26,42 +26,89 @@ imports. Vue only renders that state and routes input into it.
 
 ---
 
-## Phase 1 — The engine (`src/core/`), test-first
+## Phase 1 — The engine (`src/core/`), test-first ✅
 
 No Vue. No `.vue` files. This is where Vitest earns its place.
 
-- [ ] `core/constants.ts` — `SIZE = 9`, `BOX = 3`, `CELLS = 81`, `DIFFICULTY_CLUES`
-- [ ] `core/types.ts` — `Difficulty`, `Board`, `Puzzle`, `GameSnapshot`
-- [ ] `core/grid.ts` — `rowOf`/`colOf`/`boxOf`, precomputed `PEERS: number[][]`
-  - [ ] test: every cell has exactly 20 peers
-  - [ ] test: peer relationships are symmetric
-- [ ] `core/notes.ts` — bitmask helpers (`toggleNote`, `hasNote`, `notesToArray`)
-  - [ ] test: round-trip toggle, multiple notes per cell
-- [ ] `core/validate.ts` — `conflictsIn(board): Set<number>`, `isComplete(board)`
-  - [ ] test: hand-written boards with row / column / box conflicts
-- [ ] `core/solver.ts` — backtracking + MRV heuristic; `countSolutions(board, limit = 2)`
-  - [ ] test: solves a known puzzle to its known solution
-  - [ ] test: detects a multi-solution board (returns 2)
-  - [ ] test: returns 0 for an unsolvable board
-- [ ] `core/generator.ts` — randomized fill, then remove clues while `countSolutions === 1`
-  - [ ] test: output always has a unique solution
-  - [ ] test: puzzle is a subset of its solution
-  - [ ] test: clue count matches the requested difficulty band
-- [ ] Remove `passWithNoTests` from `vitest.config.ts`
+- [x] `core/constants.ts` — `SIZE`, `BOX_SIZE`, `CELLS`, `DIFFICULTY_CLUES`
+- [x] `core/types.ts` — `Difficulty`, `Board`, `Notes`, `Puzzle`
+- [x] `core/grid.ts` — `rowOf`/`colOf`/`boxOf`/`indexAt`, precomputed `PEERS`
+- [x] `core/notes.ts` — bitmask helpers (`toggleNote`, `hasNote`, `notesToArray`)
+- [x] `core/validate.ts` — `conflictsIn(board): Set<number>`, `isComplete(board)`
+- [x] `core/solver.ts` — backtracking + MRV; `countSolutions(board, limit, nodeBudget)`
+- [x] `core/generator.ts` — dig-holes generation with uniqueness checking
+- [x] Remove `passWithNoTests` from `vitest.config.ts`
 
-**Gate:** `pnpm test:unit` green with real coverage of `core/`, without a single `.vue` file.
+**Gate:** ✅ 54 tests green in ~260ms, no `.vue` files involved.
+
+### Things learned the hard way
+
+- **The solver assumed valid input.** `findMrvCell` only derives candidates for
+  *empty* cells, so it could not see two identical clues in the same row. On a
+  contradictory board it explored the entire space before failing — turning a
+  ~1ms rejection into a multi-minute hang that looked like a broken test runner.
+  Fixed with an up-front `conflictsIn()` guard in both `solve()` and
+  `countSolutions()`; there is a regression test asserting it returns in <100ms.
+- **Vitest was defaulting to `jsdom`** for pure-TS specs, costing ~60s of
+  environment startup. Now `environment: 'node'`; component specs will opt in
+  per-file with a `// @vitest-environment jsdom` docblock.
+- **`noUncheckedIndexedAccess` is on** in `tsconfig.app.json`, so every indexed
+  read is `T | undefined`. Worth keeping — it caught real gaps.
 
 ---
 
-## Phase 2 — Web Worker
+## Phase 2 — Web Worker + live progress streaming ✅
 
-- [ ] `workers/sudoku.worker.ts` — `{ type: 'generate', difficulty, requestId }` in, puzzle out
-- [ ] `workers/generatorClient.ts` — `new Worker(new URL('./sudoku.worker.ts', import.meta.url), { type: 'module' })`
-- [ ] Match responses by `requestId`; expose `generatePuzzle(difficulty): Promise<Puzzle>`
-- [ ] Synchronous fallback when `Worker` is unavailable (also keeps jsdom tests painless)
-- [ ] Loading spinner in `GameView` while generating
+Pulled forward, and scoped up: the worker does not just keep the UI unblocked,
+it *streams the search* so it can be watched.
 
-**Gate:** generating an expert puzzle never freezes the UI — the spinner keeps animating throughout.
+- [x] `core/solver.ts` — `solveSteps()`, a generator yielding `place`/`backtrack`
+      steps via `yield*` delegation. Kept separate from the fast `solve()`, which
+      pays nothing for instrumentation.
+- [x] `workers/protocol.ts` — typed `WorkerRequest`/`WorkerResponse` + speed presets
+- [x] `workers/solveRunner.ts` — paced batch loop, shared by worker and fallback
+- [x] `workers/sudoku.worker.ts` — thin dispatcher over `core/`
+- [x] `workers/sudokuClient.ts` — `new URL(..., import.meta.url)`, `requestId`
+      matching, cancellation, and a main-thread fallback when `Worker` is absent
+- [x] `composables/useRafCoalesced.ts` — one commit per animation frame
+- [x] `composables/useSolver.ts` — reactive `board`/`steps`/`backtracks`/`depth`/rate
+- [x] `views/GameView.vue` — temporary harness to watch it run (Phase 4 replaces it)
+
+**Gate:** ✅ measured across speeds on one expert puzzle — identical search
+(267 steps, 105 backtracks) at every speed, with the message rate bounded by
+the preset rather than by solver speed:
+
+| speed | progress msgs | elapsed | avg gap |
+| --- | --- | --- | --- |
+| `slow` | 133 | 5410ms | 41ms |
+| `fast` | 1 | 17ms | — |
+| `instant` | 0 | 0ms | — |
+
+### The throttling design (the RxJS question)
+
+Two independent stages, because they solve different problems:
+
+1. **Worker side — emit rate.** `SPEED_PRESETS` sets `stepsPerTick` (batch size)
+   and `tickMs` (pause between batches). Posting per step would mean millions of
+   structured clones a second; the clone alone would dwarf the solving.
+2. **Main thread — commit rate.** `useRafCoalesced` keeps only the newest value
+   per animation frame. The screen cannot show more than one state per frame, so
+   anything beyond that is reactivity and re-rendering thrown away.
+
+RxJS mapping, for reference:
+
+| RxJS | here |
+| --- | --- |
+| `Observable` | worker messages |
+| `BehaviorSubject` | `ref` / `shallowRef` |
+| `subscribe()` | `push()` in the message handler |
+| `auditTime(0, animationFrameScheduler)` | `useRafCoalesced` |
+| `map()` | `computed()` |
+| `takeUntil(destroy$)` | `onScopeDispose()` |
+
+Note `requestAnimationFrame` is paused entirely while a tab is hidden (verified:
+0 frames/sec). That is why terminal events call `flush()` — otherwise a solve
+finishing in a background tab would never show its result.
 
 ---
 
@@ -146,9 +193,9 @@ pnpm lint && pnpm type-check && pnpm test:unit --run && pnpm build
 ## Commit sequence
 
 1. [x] `chore: strip create-vue demo scaffold`
-2. [ ] `feat(core): sudoku types, grid helpers, validation + tests`
-3. [ ] `feat(core): backtracking solver and unique-puzzle generator + tests`
-4. [ ] `feat(workers): offload generation to a web worker`
+2. [x] `feat(core): sudoku types, grid helpers, validation + tests`
+3. [x] `feat(core): backtracking solver and unique-puzzle generator + tests`
+4. [x] `feat(workers): offload generation to a web worker`
 5. [ ] `feat(composables): useSudoku, useHistory, useTimer, keyboard`
 6. [ ] `feat(ui): board, cell, number pad, game view`
 7. [ ] `feat: hints, auto-check, persistence, stats`
