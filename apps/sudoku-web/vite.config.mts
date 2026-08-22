@@ -1,23 +1,29 @@
 /// <reference types='vitest' />
+import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import vueDevTools from 'vite-plugin-vue-devtools';
 
 export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/apps/sudoku-web',
   server:{
-    port: 4200,
+    port: Number(process.env.PORT) || 4200,
     host: 'localhost',
   },
   preview:{
     port: 4300,
     host: 'localhost',
   },
-  plugins: [vue()],
-  // Uncomment this if you are using workers.
-  // worker: {
-  //  plugins: [],
-  // },
+  resolve: {
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+  },
+  css: {
+    preprocessorOptions: {
+      scss: { additionalData: `@use "@/assets/variables" as *;` },
+    },
+  },
+  plugins: [vue(), vueDevTools()],
   build: {
     outDir: './dist',
     emptyOutDir: true,

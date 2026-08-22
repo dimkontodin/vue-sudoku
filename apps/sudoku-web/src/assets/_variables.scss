@@ -1,0 +1,37 @@
+// Structural design tokens, auto-injected into every .scss / <style lang="scss">
+// block by the `additionalData` option in vite.config.ts — never @use this file
+// manually, it is already in scope.
+
+// Board geometry
+$cell-size: 3rem;
+$cell-size-sm: 2.25rem;
+$grid-line: 1px;
+$box-line: 3px;
+
+// Total rendered board width: 9 cells, the 8 thin lines between them, the two
+// wide box separators and the board's own padding (4 x $box-line in all).
+// Derived rather than hardcoded so the surrounding controls stay aligned if a
+// token changes.
+//
+// calc() rather than plain arithmetic: $cell-size is in rem and the line
+// tokens are in px, and Sass cannot add mismatched units at compile time —
+// it hard-errors. calc() defers that to the browser, which can.
+$board-width: calc(#{$cell-size} * 9 + #{$grid-line} * 8 + #{$box-line} * 4);
+
+// Spacing
+$gap-xs: 0.25rem;
+$gap-sm: 0.5rem;
+$gap-md: 0.8rem;
+$gap-lg: 1.2rem;
+
+// Shape
+$radius-sm: 4px;
+$radius-md: 8px;
+$radius-lg: 16px;
+
+// Breakpoints
+$bp-sm: 480px;
+$bp-md: 768px;
+
+// Brand
+$primary: #42b883;
