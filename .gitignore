@@ -11,8 +11,16 @@ node_modules
 .DS_Store
 dist
 dist-ssr
+out-tsc
+tmp
 coverage
 *.local
+
+# Nx
+.nx/cache
+.nx/workspace-data
+.nx/migrate-runs
+test-output
 
 # Editor directories and files
 .vscode/*
