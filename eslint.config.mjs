@@ -10,7 +10,9 @@ export default [
         "**/out-tsc",
         "**/vite.config.*.timestamp*",
         "**/vitest.config.*.timestamp*",
-        "**/test-output"
+        "**/test-output",
+        "**/android",
+        "**/ios"
       ]
     },
     {
