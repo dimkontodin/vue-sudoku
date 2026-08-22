@@ -52,3 +52,21 @@ pre {
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
 }
+
+/* Structural tokens shared by the game screens/components. Ionic already
+   supplies color via --ion-color-*, so only sizing/spacing lives here. */
+:root {
+  --cell-size: 2.5rem;
+  --grid-line: 1px;
+  --box-line: 3px;
+  --board-width: calc(var(--cell-size) * 9 + var(--grid-line) * 8 + var(--box-line) * 4);
+
+  --gap-xs: 0.25rem;
+  --gap-sm: 0.5rem;
+  --gap-md: 0.8rem;
+  --gap-lg: 1.2rem;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+}

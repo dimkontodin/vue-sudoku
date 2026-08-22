@@ -35,6 +35,9 @@ importers:
       '@ionic/vue':
         specifier: ^9.0.0
         version: 9.0.0(@stencil/core@4.44.1)(vue-router@5.2.0(@vue/compiler-sfc@3.5.41)(rolldown@1.2.5)(vite@8.2.2(@types/node@24.13.3)(jiti@2.7.0)(sass@1.103.1)(yaml@2.9.0))(vue@3.6.0-rc.5(typescript@6.0.3)))(vue@3.6.0-rc.5(typescript@6.0.3))
+      '@ionic/vue-router':
+        specifier: ^9.0.0
+        version: 9.0.0(@stencil/core@4.44.1)(vue-router@5.2.0(@vue/compiler-sfc@3.5.41)(rolldown@1.2.5)(vite@8.2.2(@types/node@24.13.3)(jiti@2.7.0)(sass@1.103.1)(yaml@2.9.0))(vue@3.6.0-rc.5(typescript@6.0.3)))(vue@3.6.0-rc.5(typescript@6.0.3))
       vue:
         specifier: rc
         version: 3.6.0-rc.5(typescript@6.0.3)
@@ -944,6 +947,9 @@ packages:
   '@ionic/utils-terminal@2.3.5':
     resolution: {integrity: sha512-3cKScz9Jx2/Pr9ijj1OzGlBDfcmx7OMVBt4+P1uRR0SSW4cm1/y3Mo4OY3lfkuaYifMNBW8Wz6lQHbs1bihr7A==}
     engines: {node: '>=16.0.0'}
+
+  '@ionic/vue-router@9.0.0':
+    resolution: {integrity: sha512-vCR+Do6wx5UPvItXSeMj1wc5l5Xu+hg2iGGJHUvseO6b8KwqdSNezTHyCdlA8/utaI5W5u//R9T+ke+xNBmu6A==}
 
   '@ionic/vue@9.0.0':
     resolution: {integrity: sha512-k679QcbbtUrfMWrbhv/37n3MT5DFW26lOXG550F8E6DlkKckjbiAOH+IsJ9gthYUWD2QuypldGwZGesk1kT6sg==}
@@ -5082,6 +5088,14 @@ snapshots:
       wrap-ansi: 7.0.0
     transitivePeerDependencies:
       - supports-color
+
+  '@ionic/vue-router@9.0.0(@stencil/core@4.44.1)(vue-router@5.2.0(@vue/compiler-sfc@3.5.41)(rolldown@1.2.5)(vite@8.2.2(@types/node@24.13.3)(jiti@2.7.0)(sass@1.103.1)(yaml@2.9.0))(vue@3.6.0-rc.5(typescript@6.0.3)))(vue@3.6.0-rc.5(typescript@6.0.3))':
+    dependencies:
+      '@ionic/vue': 9.0.0(@stencil/core@4.44.1)(vue-router@5.2.0(@vue/compiler-sfc@3.5.41)(rolldown@1.2.5)(vite@8.2.2(@types/node@24.13.3)(jiti@2.7.0)(sass@1.103.1)(yaml@2.9.0))(vue@3.6.0-rc.5(typescript@6.0.3)))(vue@3.6.0-rc.5(typescript@6.0.3))
+    transitivePeerDependencies:
+      - '@stencil/core'
+      - vue
+      - vue-router
 
   '@ionic/vue@9.0.0(@stencil/core@4.44.1)(vue-router@5.2.0(@vue/compiler-sfc@3.5.41)(rolldown@1.2.5)(vite@8.2.2(@types/node@24.13.3)(jiti@2.7.0)(sass@1.103.1)(yaml@2.9.0))(vue@3.6.0-rc.5(typescript@6.0.3)))(vue@3.6.0-rc.5(typescript@6.0.3))':
     dependencies:

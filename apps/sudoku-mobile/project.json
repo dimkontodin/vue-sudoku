@@ -1,0 +1,31 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "targets": {
+    "cap-sync": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "npx cap sync",
+        "cwd": "apps/sudoku-mobile"
+      }
+    },
+    "open": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["cap-sync"],
+      "options": {
+        "command": "echo \"Pass a platform, e.g. 'nx run sudoku-mobile:open:android'\" && exit 1",
+        "cwd": "apps/sudoku-mobile"
+      },
+      "configurations": {
+        "android": {
+          "command": "npx cap open android",
+          "cwd": "apps/sudoku-mobile"
+        },
+        "ios": {
+          "command": "npx cap open ios",
+          "cwd": "apps/sudoku-mobile"
+        }
+      }
+    }
+  }
+}
