@@ -11,6 +11,12 @@
     },
     {
       "path": "./libs/sudoku-core"
+    },
+    {
+      "path": "./apps/sudoku-mobile-e2e"
+    },
+    {
+      "path": "./apps/sudoku-mobile"
     }
   ]
 }

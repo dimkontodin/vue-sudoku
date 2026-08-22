@@ -172,6 +172,14 @@ importers:
         specifier: ^3.3.7
         version: 3.3.11(typescript@6.0.3)
 
+  apps/sudoku-mobile:
+    dependencies:
+      '@sudoku-web/sudoku-core':
+        specifier: workspace:*
+        version: link:../../libs/sudoku-core
+
+  apps/sudoku-mobile-e2e: {}
+
   apps/sudoku-web:
     dependencies:
       '@sudoku-web/sudoku-core':
