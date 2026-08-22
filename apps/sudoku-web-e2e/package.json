@@ -1,0 +1,10 @@
+{
+  "name": "@sudoku-web/sudoku-web-e2e",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "implicitDependencies": [
+      "@sudoku-web/sudoku-web"
+    ]
+  }
+}
