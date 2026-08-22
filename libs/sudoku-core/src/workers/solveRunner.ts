@@ -1,5 +1,5 @@
-import { solveSteps } from '@/core/solver'
-import type { Board } from '@/core/types'
+import { solveSteps } from '../core/solver'
+import type { Board } from '../core/types'
 import { SPEED_PRESETS, type SolveProgress, type SolveSpeed } from './protocol'
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
-import type { Difficulty } from '@/core/types'
+import type { Difficulty } from '@sudoku-web/sudoku-core'
 
 const props = defineProps<{
   open: boolean

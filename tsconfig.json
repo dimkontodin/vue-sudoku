@@ -8,6 +8,9 @@
     },
     {
       "path": "./apps/sudoku-web"
+    },
+    {
+      "path": "./libs/sudoku-core"
     }
   ]
 }

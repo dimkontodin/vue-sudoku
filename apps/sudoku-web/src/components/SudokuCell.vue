@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { colOf, rowOf } from '@/core/grid'
-import { hasNote } from '@/core/notes'
+import { colOf, rowOf } from '@sudoku-web/sudoku-core'
+import { hasNote } from '@sudoku-web/sudoku-core'
 
 // Deliberately knows nothing about Sudoku rules. It is told how to look and
 // reports that it was clicked; every decision behind these props is made by

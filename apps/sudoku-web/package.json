@@ -1,5 +1,8 @@
 {
   "name": "@sudoku-web/sudoku-web",
   "version": "0.0.1",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@sudoku-web/sudoku-core": "workspace:*"
+  }
 }

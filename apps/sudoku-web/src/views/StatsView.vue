@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { formatMs, useStats } from '@/composables/useStats'
+import { formatMs, useStats } from '@sudoku-web/sudoku-core'
 
 const stats = useStats()
 

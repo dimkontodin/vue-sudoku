@@ -1,6 +1,6 @@
 import { computed, shallowRef } from 'vue'
-import type { Difficulty } from '@/core/types'
-import { isVersionedObject, readJson, removeKey, writeJson } from '@/utils/storage'
+import type { Difficulty } from '../core/types'
+import { isVersionedObject, readJson, removeKey, writeJson } from '../utils/storage'
 
 const STORAGE_KEY = 'vue-sudoku:stats'
 const VERSION = 1

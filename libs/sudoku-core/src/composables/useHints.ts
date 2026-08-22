@@ -1,11 +1,11 @@
 import { computed, shallowRef } from 'vue'
-import { CELLS } from '@/core/constants'
-import { computeCandidates } from '@/core/candidates'
-import { findNextStep } from '@/core/logicalSolver'
-import { noteMask } from '@/core/notes'
-import { TECHNIQUE_META } from '@/core/techniques/types'
-import type { TechniqueStep } from '@/core/techniques/types'
-import type { Board, Notes } from '@/core/types'
+import { CELLS } from '../core/constants'
+import { computeCandidates } from '../core/candidates'
+import { findNextStep } from '../core/logicalSolver'
+import { noteMask } from '../core/notes'
+import { TECHNIQUE_META } from '../core/techniques/types'
+import type { TechniqueStep } from '../core/techniques/types'
+import type { Board, Notes } from '../core/types'
 
 /**
  * How much of a hint the player has asked for. Each press reveals one more

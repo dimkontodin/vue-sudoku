@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope } from 'vue'
-import { generate } from '@/core/generator'
-import { isComplete } from '@/core/validate'
+import { generate } from '../../core/generator'
+import { isComplete } from '../../core/validate'
+import { createFallbackSudokuClient } from '../../workers/fallbackClient'
 import { useSolver } from '../useSolver'
 
 // No `Worker` in the node environment, so these exercise the client's
@@ -27,7 +28,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 function withScope<T>(body: (solver: ReturnType<typeof useSolver>) => Promise<T>): Promise<T> {
   const scope = effectScope()
-  const result = scope.run(() => body(useSolver()))!
+  const result = scope.run(() => body(useSolver(createFallbackSudokuClient)))!
   return result.finally(() => scope.stop())
 }
 

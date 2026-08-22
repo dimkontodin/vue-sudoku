@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { generate } from '@/core/generator'
-import { solveLogically } from '@/core/logicalSolver'
-import { computeCandidates } from '@/core/candidates'
-import { noteMask, notesToArray } from '@/core/notes'
-import { parseGrid } from '@/core/__tests__/fixtures'
-import { HARD_PUZZLES } from '@/core/__tests__/fixtures'
+import { generate } from '../../core/generator'
+import { solveLogically } from '../../core/logicalSolver'
+import { computeCandidates } from '../../core/candidates'
+import { noteMask, notesToArray } from '../../core/notes'
+import { parseGrid } from '../../core/__tests__/fixtures'
+import { HARD_PUZZLES } from '../../core/__tests__/fixtures'
 import { useHints } from '../useHints'
 
 describe('useHints', () => {

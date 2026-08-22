@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { CELLS } from '@/core/constants'
-import { peersOf } from '@/core/grid'
-import { generate } from '@/core/generator'
-import { computeCandidates } from '@/core/candidates'
-import { hasNote } from '@/core/notes'
-import type { Puzzle } from '@/core/types'
+import { CELLS } from '../../core/constants'
+import { peersOf } from '../../core/grid'
+import { generate } from '../../core/generator'
+import { computeCandidates } from '../../core/candidates'
+import { hasNote } from '../../core/notes'
+import type { Puzzle } from '../../core/types'
 import { useSudoku } from '../useSudoku'
 
 /** A puzzle with a single empty cell, so tests can reason about exact state. */

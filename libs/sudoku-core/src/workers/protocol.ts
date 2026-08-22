@@ -1,4 +1,4 @@
-import type { Difficulty } from '@/core/types'
+import type { Difficulty } from '../core/types'
 
 // How fast the solver runs and, consequently, how often it can emit.
 //

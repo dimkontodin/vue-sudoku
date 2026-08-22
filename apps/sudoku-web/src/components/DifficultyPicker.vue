@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Difficulty } from '@/core/types'
+import type { Difficulty } from '@sudoku-web/sudoku-core'
 
 // `defineModel` is the modern shorthand for the modelValue prop plus the
 // update:modelValue emit, so the parent can just write v-model.

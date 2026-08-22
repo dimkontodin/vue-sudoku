@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
-import { CELLS } from '@/core/constants'
-import { generate } from '@/core/generator'
+import { CELLS } from '../../core/constants'
+import { generate } from '../../core/generator'
 import { useGameStorage, type GameToSave } from '../useGameStorage'
 
 const STORAGE_KEY = 'vue-sudoku:game'

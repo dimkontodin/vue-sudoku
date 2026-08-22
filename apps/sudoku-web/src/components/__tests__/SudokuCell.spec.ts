@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { setNote } from '@/core/notes'
+import { setNote } from '@sudoku-web/sudoku-core'
 import SudokuCell from '../SudokuCell.vue'
 
 type CellProps = InstanceType<typeof SudokuCell>['$props']

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CELLS } from '@/core/constants'
-import { peersOf } from '@/core/grid'
-import type { Board, Notes } from '@/core/types'
+import { CELLS } from '@sudoku-web/sudoku-core'
+import { peersOf } from '@sudoku-web/sudoku-core'
+import type { Board, Notes } from '@sudoku-web/sudoku-core'
 import SudokuCell from './SudokuCell.vue'
 
 const props = defineProps<{

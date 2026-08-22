@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HintStage } from '@/composables/useHints'
+import type { HintStage } from '@sudoku-web/sudoku-core'
 
 defineProps<{
   stage: HintStage

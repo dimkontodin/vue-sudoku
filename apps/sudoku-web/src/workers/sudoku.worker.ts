@@ -1,6 +1,5 @@
-import { generate } from '@/core/generator'
-import { runSolve } from './solveRunner'
-import type { WorkerRequest, WorkerResponse } from './protocol'
+import { generate, runSolve } from '@sudoku-web/sudoku-core'
+import type { WorkerRequest, WorkerResponse } from '@sudoku-web/sudoku-core'
 
 // The project compiles against the DOM lib, where `self` is a Window. Pulling
 // in the `webworker` lib to get DedicatedWorkerGlobalScope would collide with

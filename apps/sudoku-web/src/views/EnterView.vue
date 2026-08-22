@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { CELLS } from '@/core/constants'
-import { parseBoard, validatePuzzle, type Validation } from '@/core/parse'
-import { solveLogically } from '@/core/logicalSolver'
-import { TECHNIQUE_META } from '@/core/techniques/types'
-import { usePuzzleHandoff } from '@/composables/usePuzzleHandoff'
+import { CELLS } from '@sudoku-web/sudoku-core'
+import { parseBoard, validatePuzzle, type Validation } from '@sudoku-web/sudoku-core'
+import { solveLogically } from '@sudoku-web/sudoku-core'
+import { TECHNIQUE_META } from '@sudoku-web/sudoku-core'
+import { usePuzzleHandoff } from '@sudoku-web/sudoku-core'
 import SudokuBoard from '@/components/SudokuBoard.vue'
 
 const router = useRouter()

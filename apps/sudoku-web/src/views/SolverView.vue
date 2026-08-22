@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef } from 'vue'
-import { CELLS } from '@/core/constants'
-import { boxOf, colOf, rowOf } from '@/core/grid'
-import type { Difficulty } from '@/core/types'
-import type { SolveSpeed } from '@/workers/protocol'
-import { useSolver } from '@/composables/useSolver'
+import { CELLS } from '@sudoku-web/sudoku-core'
+import { boxOf, colOf, rowOf } from '@sudoku-web/sudoku-core'
+import type { Difficulty } from '@sudoku-web/sudoku-core'
+import type { SolveSpeed } from '@sudoku-web/sudoku-core'
+import { useSolver } from '@sudoku-web/sudoku-core'
+import { createSudokuClient } from '@/workers/sudokuClient'
 
 // Solver visualiser: watch the backtracking search run in the worker.
 // Intentionally standalone — it renders its own bare grid rather than the
@@ -14,7 +15,7 @@ import { useSolver } from '@/composables/useSolver'
 const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert']
 const SPEEDS: SolveSpeed[] = ['slow', 'medium', 'fast', 'instant']
 
-const solver = useSolver()
+const solver = useSolver(createSudokuClient)
 
 const puzzle = shallowRef<Uint8Array | null>(null)
 const difficulty = shallowRef<Difficulty>('hard')

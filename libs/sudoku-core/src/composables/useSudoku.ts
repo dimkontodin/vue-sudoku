@@ -1,10 +1,10 @@
 import { computed, shallowRef, type ShallowRef } from 'vue'
-import { CELLS, SIZE } from '@/core/constants'
-import { colOf, peersOf, rowOf } from '@/core/grid'
-import { clearNote, notesToArray, toggleNote as toggleNoteBit } from '@/core/notes'
-import { conflictsIn, isComplete } from '@/core/validate'
-import { computeCandidates } from '@/core/candidates'
-import type { Board, Notes, Puzzle } from '@/core/types'
+import { CELLS, SIZE } from '../core/constants'
+import { colOf, peersOf, rowOf } from '../core/grid'
+import { clearNote, notesToArray, toggleNote as toggleNoteBit } from '../core/notes'
+import { conflictsIn, isComplete } from '../core/validate'
+import { computeCandidates } from '../core/candidates'
+import type { Board, Notes, Puzzle } from '../core/types'
 import { useHistory } from './useHistory'
 
 /** A single cell's before/after state. */

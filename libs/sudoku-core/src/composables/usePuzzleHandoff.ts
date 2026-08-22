@@ -1,5 +1,5 @@
 import { shallowRef } from 'vue'
-import type { Puzzle } from '@/core/types'
+import type { Puzzle } from '../core/types'
 
 /**
  * A one-shot slot for passing a hand-entered puzzle from /enter to the game.

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { effectScope } from 'vue'
-import { generate } from '@/core/generator'
+import { generate } from '../../core/generator'
 import { useSudoku } from '../useSudoku'
 import { useBoardKeyboard } from '../useBoardKeyboard'
 

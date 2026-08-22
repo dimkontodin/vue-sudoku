@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Difficulty } from '@/core/types'
+import type { Difficulty } from '@sudoku-web/sudoku-core'
 
 defineProps<{
   difficulty: Difficulty

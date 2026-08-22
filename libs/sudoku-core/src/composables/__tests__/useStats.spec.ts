@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { Difficulty } from '@/core/types'
+import type { Difficulty } from '../../core/types'
 import { formatMs, useStats, type WinRecord } from '../useStats'
 
 function win(difficulty: Difficulty, timeMs: number, extra: Partial<WinRecord> = {}): WinRecord {

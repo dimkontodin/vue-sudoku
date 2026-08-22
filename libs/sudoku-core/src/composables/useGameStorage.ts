@@ -1,6 +1,6 @@
-import { CELLS } from '@/core/constants'
-import type { Difficulty } from '@/core/types'
-import { isNumberArray, isVersionedObject, readJson, removeKey, writeJson } from '@/utils/storage'
+import { CELLS } from '../core/constants'
+import type { Difficulty } from '../core/types'
+import { isNumberArray, isVersionedObject, readJson, removeKey, writeJson } from '../utils/storage'
 
 const STORAGE_KEY = 'vue-sudoku:game'
 

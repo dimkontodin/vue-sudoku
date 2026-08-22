@@ -1,13 +1,19 @@
 import { computed, onScopeDispose, shallowRef } from 'vue'
-import type { Board, Difficulty } from '@/core/types'
-import { createSudokuClient } from '@/workers/sudokuClient'
-import type { SolveProgress, SolveSpeed } from '@/workers/protocol'
+import type { Board, Difficulty } from '../core/types'
+import type { SudokuClient } from '../workers/client-types'
+import type { SolveProgress, SolveSpeed } from '../workers/protocol'
 import { useRafCoalesced } from './useRafCoalesced'
 
 export type SolverStatus = 'idle' | 'solving' | 'solved' | 'failed' | 'cancelled' | 'error'
 
-export function useSolver() {
-  const client = createSudokuClient()
+/**
+ * The actual `SudokuClient` (which wraps a Web Worker) is created by the
+ * consuming app, not here — Vite only bundles `new Worker(new URL(...))`
+ * correctly when it lives in the final app's own build. This composable just
+ * drives whatever client it's handed.
+ */
+export function useSolver(createClient: () => SudokuClient) {
+  const client = createClient()
 
   // One coalesced object rather than a ref per field: the board, step count
   // and depth all describe the same instant, so committing them together
