@@ -4,7 +4,10 @@
     "allowJs": true,
     "outDir": "out-tsc/playwright",
     "sourceMap": false,
-    "types": ["node"]
+    "types": ["node"],
+    // page.evaluate() callbacks are compiled here but run in the browser, so
+    // they need the DOM types even though the test process itself is Node.
+    "lib": ["es2022", "dom"]
   },
   "include": [
     "**/*.ts",

@@ -56,10 +56,21 @@ pre {
 /* Structural tokens shared by the game screens/components. Ionic already
    supplies color via --ion-color-*, so only sizing/spacing lives here. */
 :root {
-  --cell-size: 2.5rem;
   --grid-line: 1px;
   --box-line: 3px;
-  --board-width: calc(var(--cell-size) * 9 + var(--grid-line) * 8 + var(--box-line) * 4);
+
+  /* The board is fluid, not a fixed 380px block: a phone is 360-430px wide and
+     the old fixed size overflowed IonContent's padding on every small Android.
+     Width is the real constraint, so height only clamps the board once there is
+     genuinely no room, and never below 17rem — a board too small to tap is
+     worse than a little scrolling. --chrome-h is the header + status + pinned
+     pad + tab bar the board has to share the screen with. */
+  --chrome-h: 22rem;
+  --board-width: min(30rem, calc(100vw - 2rem), max(17rem, calc(100dvh - var(--chrome-h))));
+
+  /* Only for the small static previews on Solver/Enter — the Play board sizes
+     its cells from the container instead, via `aspect-ratio` on .board. */
+  --cell-size: min(2.5rem, calc((100vw - 3rem) / 9));
 
   --gap-xs: 0.25rem;
   --gap-sm: 0.5rem;

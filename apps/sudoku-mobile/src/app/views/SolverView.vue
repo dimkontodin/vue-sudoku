@@ -76,13 +76,32 @@ onMounted(newPuzzle)
             </IonSegmentButton>
           </IonSegment>
 
+          <!--
+            "New puzzle" and "Solve" use native <button>s, not IonButton:
+            Ionic 9 copies `disabled`/`aria-*` onto its inner shadow button
+            once at hydration and never syncs them again, so a binding that
+            flips back to false leaves the control permanently dead (verified
+            live; see NumberPad.vue for the same fix). Cancel is unaffected —
+            it is freshly mounted each time it appears, never toggled in place.
+          -->
           <div class="solver__buttons">
-            <IonButton size="small" fill="outline" :disabled="isGenerating || solver.isSolving.value" @click="newPuzzle">
+            <button
+              type="button"
+              class="solver__btn solver__btn--outline"
+              :disabled="isGenerating || solver.isSolving.value"
+              @click="newPuzzle"
+            >
               {{ isGenerating ? 'Generating…' : 'New puzzle' }}
-            </IonButton>
-            <IonButton v-if="!solver.isSolving.value" size="small" :disabled="!puzzle" @click="startSolve">
+            </button>
+            <button
+              v-if="!solver.isSolving.value"
+              type="button"
+              class="solver__btn solver__btn--solid"
+              :disabled="!puzzle"
+              @click="startSolve"
+            >
               Solve
-            </IonButton>
+            </button>
             <IonButton v-else size="small" color="danger" @click="solver.cancel()">Cancel</IonButton>
           </div>
         </div>
@@ -135,6 +154,36 @@ onMounted(newPuzzle)
 
 .solver__buttons ion-button {
   margin: 0;
+}
+
+.solver__btn {
+  height: 27.3px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.solver__btn--outline {
+  border: 1.6px solid var(--ion-color-primary, #3880ff);
+  background: transparent;
+  color: var(--ion-color-primary, #3880ff);
+}
+
+.solver__btn--solid {
+  border: 0;
+  background: var(--ion-color-primary, #3880ff);
+  color: var(--ion-color-primary-contrast, #fff);
+}
+
+.solver__btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .board {

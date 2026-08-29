@@ -13,18 +13,28 @@ const props = defineProps<{
   incorrect: ReadonlySet<number>
   hintPattern?: ReadonlySet<number>
   hintTargets?: ReadonlySet<number>
+  /**
+   * Which digit to light up across the board. Normally the selected cell's
+   * value, but digit-first input overrides it with the armed digit so the
+   * player can see where that digit already lives while placing it.
+   */
+  highlightValue?: number
 }>()
 
-const emit = defineEmits<{ select: [index: number] }>()
+const emit = defineEmits<{
+  select: [index: number]
+  longPress: [index: number]
+}>()
 
 const peerIndices = computed(() => {
   if (props.selectedIndex === null) return new Set<number>()
   return new Set(peersOf(props.selectedIndex))
 })
 
-const selectedValue = computed(() =>
-  props.selectedIndex === null ? 0 : (props.board[props.selectedIndex] ?? 0),
-)
+const highlighted = computed(() => {
+  if (props.highlightValue !== undefined) return props.highlightValue
+  return props.selectedIndex === null ? 0 : (props.board[props.selectedIndex] ?? 0)
+})
 
 const cells = computed(() =>
   Array.from({ length: CELLS }, (_, index) => {
@@ -36,7 +46,7 @@ const cells = computed(() =>
       isGiven: (props.puzzle[index] ?? 0) !== 0,
       isSelected: props.selectedIndex === index,
       isPeer: peerIndices.value.has(index),
-      isSameValue: value !== 0 && value === selectedValue.value && props.selectedIndex !== index,
+      isSameValue: value !== 0 && value === highlighted.value && props.selectedIndex !== index,
       hasConflict: props.conflicts.has(index),
       isIncorrect: props.incorrect.has(index),
       isHintPattern: props.hintPattern?.has(index) ?? false,
@@ -48,15 +58,27 @@ const cells = computed(() =>
 
 <template>
   <div class="board" role="group" aria-label="Sudoku board">
-    <SudokuCell v-for="cell in cells" :key="cell.index" v-bind="cell" @select="emit('select', $event)" />
+    <SudokuCell
+      v-for="cell in cells"
+      :key="cell.index"
+      v-bind="cell"
+      @select="emit('select', $event)"
+      @long-press="emit('longPress', $event)"
+    />
   </div>
 </template>
 
 <style scoped>
 .board {
+  /* Fluid: the cells take their size from the board, not the other way round,
+     so the grid always fits the width the parent gives it. The old
+     `width: max-content` over a fixed --cell-size resolved to 380px and
+     overflowed IonContent's padding on every phone narrower than ~410px. */
   display: grid;
-  grid-template-columns: repeat(9, auto);
-  width: max-content;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+  aspect-ratio: 1;
+  width: 100%;
   gap: var(--grid-line);
   padding: var(--box-line);
   border-radius: var(--radius-sm);

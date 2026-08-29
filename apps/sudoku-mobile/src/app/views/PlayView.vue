@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import {
+  IonActionSheet,
   IonButton,
+  IonButtons,
   IonContent,
+  IonFooter,
   IonHeader,
+  IonIcon,
   IonLabel,
   IonPage,
   IonSegment,
@@ -12,6 +16,8 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/vue'
+import { ellipsisHorizontal } from 'ionicons/icons'
+import type { ActionSheetButton } from '@ionic/vue'
 import type { Difficulty } from '@vue-sudoku/sudoku-core'
 import {
   useBoardKeyboard,
@@ -27,9 +33,13 @@ import SudokuBoard from '../components/SudokuBoard.vue'
 import NumberPad from '../components/NumberPad.vue'
 import HintBanner from '../components/HintBanner.vue'
 import WinModal from '../components/WinModal.vue'
+import { useDigitFirst, type InputFeedback } from '../composables/useDigitFirst'
+import { useHaptics } from '../composables/useHaptics'
 
 // Same composition as the web app's GameView: this is the only "smart"
 // screen, owning the composables and handing plain state to dumb components.
+// What differs is the input layer — useDigitFirst turns taps into moves, and
+// the pad lives in a pinned footer instead of scrolling with the content.
 const client = createSudokuClient()
 
 const game = useSudoku()
@@ -38,16 +48,21 @@ const storage = useGameStorage()
 const stats = useStats()
 const hints = useHints()
 const handoff = usePuzzleHandoff()
+const input = useDigitFirst(game)
+const haptics = useHaptics()
 
 const difficulty = ref<Difficulty>('easy')
 const isGenerating = shallowRef(false)
 const hasWon = shallowRef(false)
 const showWinModal = shallowRef(false)
+const showActions = shallowRef(false)
 const instantFeedback = shallowRef(false)
 const isChecking = shallowRef(false)
 const isBestTime = shallowRef(false)
 const isCustom = shallowRef(false)
 
+// Kept even though a phone has no keys: it costs one listener, is inert under
+// touch, and keeps `nx serve` and keyboard-attached Android tablets playable.
 useBoardKeyboard(game, { isEnabled: () => !isGenerating.value && !hasWon.value })
 
 const NO_CELLS: ReadonlySet<number> = new Set()
@@ -57,6 +72,34 @@ const incorrect = computed(() =>
 )
 
 const canHint = computed(() => !hasWon.value && game.board.value.some((value) => value === 0))
+
+/**
+ * Runs one board interaction and picks the matching haptic.
+ *
+ * The warning buzz is gated on auto-check on purpose: `mistakes` increments
+ * whether or not the player asked to be told, so buzzing unconditionally would
+ * quietly reveal every wrong digit the moment it was entered.
+ */
+function withFeedback(action: () => InputFeedback): void {
+  const mistakesBefore = game.mistakes.value
+  const result = action()
+  if (result === 'none') return
+
+  if (instantFeedback.value && game.mistakes.value > mistakesBefore) haptics.warn()
+  else haptics.tick()
+}
+
+function undo(): void {
+  if (game.undo()) haptics.tick()
+}
+
+function redo(): void {
+  if (game.redo()) haptics.tick()
+}
+
+function eraseSelected(): void {
+  withFeedback(() => (game.erase(), 'erase'))
+}
 
 function persist() {
   if (hasWon.value) return
@@ -73,11 +116,15 @@ function persist() {
 }
 
 async function newGame() {
+  // Guards re-entry in place of a `disabled` binding on the button.
+  if (isGenerating.value) return
+
   isGenerating.value = true
   hasWon.value = false
   showWinModal.value = false
   isChecking.value = false
   hints.reset()
+  input.disarm()
   timer.pause()
   timer.reset()
   try {
@@ -101,12 +148,14 @@ function restart() {
   game.reset()
   isChecking.value = false
   hints.reset()
+  input.disarm()
   hasWon.value = false
   timer.reset()
   timer.start()
 }
 
 function hint() {
+  if (!canHint.value) return
   hints.next(game.board.value, game.notes.value)
 }
 
@@ -116,6 +165,7 @@ function applyHint() {
 
   hints.apply(step)
   suppressHintReset = true
+  input.disarm()
 
   for (const { index, digit } of step.placements) {
     game.select(index)
@@ -126,6 +176,7 @@ function applyHint() {
   }
 
   hints.reset(false)
+  haptics.tick()
 }
 
 function revealCell() {
@@ -141,6 +192,24 @@ function revealCell() {
 function fillNotes() {
   game.fillNotes()
 }
+
+/**
+ * Everything that is not digit entry. Six buttons under the board pushed the pad
+ * out of thumb reach and gave setup actions the same weight as playing ones.
+ */
+const actionButtons = computed<ActionSheetButton[]>(() => [
+  { text: 'Check now', handler: () => void (isChecking.value = true) },
+  {
+    text: `Auto-check ${instantFeedback.value ? 'off' : 'on'}`,
+    handler: () => void (instantFeedback.value = !instantFeedback.value),
+  },
+  { text: 'Fill notes', handler: fillNotes },
+  { text: 'Redo', disabled: !game.canRedo.value, handler: redo },
+  { text: `Haptics ${haptics.isEnabled.value ? 'off' : 'on'}`, handler: () => haptics.toggle() },
+  { text: 'Reveal a cell', handler: revealCell },
+  { text: 'Restart', role: 'destructive', handler: restart },
+  { text: 'Cancel', role: 'cancel' },
+])
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -165,6 +234,8 @@ watch(game.isSolved, (solved) => {
 
   hasWon.value = true
   timer.pause()
+  input.disarm()
+  haptics.succeed()
 
   const previousBest = stats.summaries.value.find(
     (summary) => summary.difficulty === difficulty.value,
@@ -217,9 +288,19 @@ onUnmounted(() => client.dispose())
     <IonHeader>
       <IonToolbar>
         <IonTitle>Play</IonTitle>
-        <IonButton slot="end" fill="clear" :disabled="isGenerating" @click="newGame">
-          {{ isGenerating ? 'Generating…' : 'New game' }}
-        </IonButton>
+        <IonButtons slot="end">
+          <!-- No `disabled`/`aria-disabled` binding: Ionic 9 latches both onto
+               its inner shadow button at hydration and never clears them, which
+               left this permanently unclickable after the first generate. The
+               changing label carries the state instead, and newGame() guards
+               its own re-entry. -->
+          <IonButton @click="newGame">
+            {{ isGenerating ? 'Generating…' : 'New game' }}
+          </IonButton>
+          <IonButton aria-label="More actions" @click="showActions = true">
+            <IonIcon slot="icon-only" :icon="ellipsisHorizontal" />
+          </IonButton>
+        </IonButtons>
       </IonToolbar>
       <IonToolbar>
         <IonSegment
@@ -246,48 +327,20 @@ onUnmounted(() => client.dispose())
         <IonSpinner v-if="isGenerating" name="crescent" />
 
         <template v-else>
-          <SudokuBoard
-            :board="game.board.value"
-            :notes="game.notes.value"
-            :puzzle="game.puzzle.value"
-            :selected-index="game.selectedIndex.value"
-            :conflicts="game.conflicts.value"
-            :incorrect="incorrect"
-            :hint-pattern="hints.patternCells.value"
-            :hint-targets="hints.targetCells.value"
-            @select="game.select($event)"
-          />
-
-          <NumberPad
-            :remaining-counts="game.remainingCounts.value"
-            :note-mode="game.noteMode.value"
-            :can-undo="game.canUndo.value"
-            :can-redo="game.canRedo.value"
-            @digit="game.inputDigit($event)"
-            @erase="game.erase()"
-            @toggle-notes="game.toggleNoteMode()"
-            @undo="game.undo()"
-            @redo="game.redo()"
-          />
-
-          <div class="game__controls">
-            <IonButton size="small" fill="outline" :disabled="!canHint" @click="hint">Hint</IonButton>
-            <IonButton
-              size="small"
-              :fill="isChecking ? 'solid' : 'outline'"
-              @click="isChecking = true"
-            >
-              Check
-            </IonButton>
-            <IonButton
-              size="small"
-              :fill="instantFeedback ? 'solid' : 'outline'"
-              @click="instantFeedback = !instantFeedback"
-            >
-              Auto-check {{ instantFeedback ? 'on' : 'off' }}
-            </IonButton>
-            <IonButton size="small" fill="outline" @click="fillNotes">Fill notes</IonButton>
-            <IonButton size="small" fill="outline" @click="restart">Restart</IonButton>
+          <div class="game__board">
+            <SudokuBoard
+              :board="game.board.value"
+              :notes="game.notes.value"
+              :puzzle="game.puzzle.value"
+              :selected-index="game.selectedIndex.value"
+              :conflicts="game.conflicts.value"
+              :incorrect="incorrect"
+              :hint-pattern="hints.patternCells.value"
+              :hint-targets="hints.targetCells.value"
+              :highlight-value="input.highlightValue.value"
+              @select="withFeedback(() => input.onCellTap($event))"
+              @long-press="withFeedback(() => input.onCellLongPress($event))"
+            />
           </div>
 
           <HintBanner
@@ -300,10 +353,6 @@ onUnmounted(() => client.dispose())
             @apply="applyHint"
             @dismiss="hints.reset()"
           />
-
-          <p class="game__reveal">
-            <button type="button" @click="revealCell">Reveal a cell</button>
-          </p>
         </template>
 
         <WinModal
@@ -316,8 +365,35 @@ onUnmounted(() => client.dispose())
           @new-game="newGame"
           @dismiss="showWinModal = false"
         />
+
+        <IonActionSheet
+          :is-open="showActions"
+          header="Board actions"
+          :buttons="actionButtons"
+          @did-dismiss="showActions = false"
+        />
       </div>
     </IonContent>
+
+    <!-- Pinned, so the pad is always under the thumb no matter how far the
+         board or the hint banner has scrolled. -->
+    <IonFooter v-if="!isGenerating" class="ion-no-border">
+      <IonToolbar>
+        <NumberPad
+          :remaining-counts="game.remainingCounts.value"
+          :note-mode="game.noteMode.value"
+          :can-undo="game.canUndo.value"
+          :can-hint="canHint"
+          :active-digit="input.activeDigit.value"
+          @digit="withFeedback(() => input.onDigitTap($event))"
+          @hold-digit="withFeedback(() => input.onDigitLongPress($event))"
+          @erase="eraseSelected"
+          @toggle-notes="game.toggleNoteMode()"
+          @undo="undo"
+          @hint="hint"
+        />
+      </IonToolbar>
+    </IonFooter>
   </IonPage>
 </template>
 
@@ -352,29 +428,16 @@ onUnmounted(() => client.dispose())
   color: var(--ion-color-medium, #92949c);
 }
 
-.game__controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap-xs);
+/* The board sizes itself from this wrapper — see --board-width in styles.css. */
+.game__board {
   width: 100%;
   max-width: var(--board-width);
 }
 
-.game__controls ion-button {
-  flex: 1 1 auto;
-  margin: 0;
-}
-
-.game__reveal {
-  font-size: 0.75rem;
-  color: var(--ion-color-medium, #92949c);
-}
-
-.game__reveal button {
-  border: 0;
-  background: none;
-  color: var(--ion-color-primary, #3880ff);
-  font: inherit;
-  text-decoration: underline;
+ion-footer ion-toolbar {
+  --padding-start: var(--gap-sm);
+  --padding-end: var(--gap-sm);
+  --padding-top: var(--gap-sm);
+  --padding-bottom: var(--gap-sm);
 }
 </style>

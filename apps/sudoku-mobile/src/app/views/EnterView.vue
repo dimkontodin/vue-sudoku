@@ -2,7 +2,6 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  IonButton,
   IonContent,
   IonHeader,
   IonPage,
@@ -121,11 +120,29 @@ const conflicts = computed<ReadonlySet<number>>(() => validation.value?.conflict
           :incorrect="NO_CELLS"
         />
 
+        <!--
+          Native <button>s, not IonButton: Ionic 9 copies `disabled`/`aria-*`
+          onto its inner shadow button once at hydration and never syncs them
+          again, so a binding that flips back to false leaves the control
+          permanently dead (verified live; see NumberPad.vue for the same fix).
+        -->
         <div class="enter__actions">
-          <IonButton fill="outline" :disabled="parsed.error !== null || isChecking" @click="check">
+          <button
+            type="button"
+            class="enter__btn enter__btn--outline"
+            :disabled="parsed.error !== null || isChecking"
+            @click="check"
+          >
             {{ isChecking ? 'Checking…' : 'Check puzzle' }}
-          </IonButton>
-          <IonButton :disabled="validation?.verdict !== 'unique'" @click="play">Play it</IonButton>
+          </button>
+          <button
+            type="button"
+            class="enter__btn enter__btn--solid"
+            :disabled="validation?.verdict !== 'unique'"
+            @click="play"
+          >
+            Play it
+          </button>
         </div>
 
         <p
@@ -209,9 +226,35 @@ const conflicts = computed<ReadonlySet<number>>(() => validation.value?.conflict
   width: 100%;
 }
 
-.enter__actions ion-button {
+.enter__btn {
   flex: 1;
-  margin: 0;
+  height: 36px;
+  padding: 0 15px;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.enter__btn--outline {
+  border: 1.6px solid var(--ion-color-primary, #3880ff);
+  background: transparent;
+  color: var(--ion-color-primary, #3880ff);
+}
+
+.enter__btn--solid {
+  border: 0;
+  background: var(--ion-color-primary, #3880ff);
+  color: var(--ion-color-primary-contrast, #fff);
+}
+
+.enter__btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .enter__verdict {

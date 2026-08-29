@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { colOf, hasNote, rowOf } from '@vue-sudoku/sudoku-core'
+import { useLongPress } from '../composables/useLongPress'
 
 // Deliberately knows nothing about Sudoku rules — same split as the web app's
 // SudokuCell: it is told how to look and reports that it was tapped.
@@ -18,7 +19,15 @@ const props = defineProps<{
   isHintTarget: boolean
 }>()
 
-const emit = defineEmits<{ select: [index: number] }>()
+const emit = defineEmits<{
+  select: [index: number]
+  longPress: [index: number]
+}>()
+
+const press = useLongPress<number>({
+  tap: (index) => emit('select', index),
+  longPress: (index) => emit('longPress', index),
+})
 
 const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
@@ -52,7 +61,12 @@ const label = computed(() => {
     :aria-label="label"
     :aria-pressed="isSelected"
     :data-index="index"
-    @click="emit('select', index)"
+    @pointerdown="press.onPointerdown($event, index)"
+    @pointermove="press.onPointermove"
+    @pointerup="press.onPointerup"
+    @pointercancel="press.onPointercancel"
+    @contextmenu="press.onContextmenu"
+    @click="press.onClick(index)"
   >
     <span v-if="value" class="cell__value">{{ value }}</span>
     <span v-else-if="notes" class="cell__notes" aria-hidden="true">
@@ -68,15 +82,21 @@ const label = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--cell-size);
-  height: var(--cell-size);
+  /* Sized by the board's 9x9 grid, so it scales with the screen. */
+  width: 100%;
+  height: 100%;
   padding: 0;
   border: 0;
   background: var(--ion-background-color, #fff);
   color: var(--ion-color-primary, #3880ff);
-  font-size: 1.15rem;
+  font-size: clamp(1rem, 5.5vw, 1.6rem);
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  /* Long-press is ours: no double-tap zoom delay, no text selection, and no
+     platform callout menu stealing the gesture. */
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
 .cell.is-peer {
@@ -126,7 +146,7 @@ const label = computed(() => {
   height: 100%;
   padding: 2px;
   color: var(--ion-color-medium, #92949c);
-  font-size: 0.5rem;
+  font-size: clamp(0.4rem, 1.9vw, 0.6rem);
   font-weight: 500;
 }
 

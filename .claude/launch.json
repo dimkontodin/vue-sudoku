@@ -2,10 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "vue-sudoku",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
-      "port": 5173,
+      "name": "sudoku-web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["nx", "serve", "sudoku-web"],
+      "port": 4200
+    },
+    {
+      "name": "sudoku-mobile",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["nx", "serve", "sudoku-mobile"],
+      "port": 4201,
       "autoPort": true
     }
   ]

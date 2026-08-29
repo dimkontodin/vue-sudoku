@@ -358,7 +358,60 @@ reporting it was stuck.
 
 ---
 
-## Phase 7 — The Pinia exercise
+## Phase 7 — Touch-native mobile controls ✅
+
+The Ionic app shipped as a UI fork of the web app, so it inherited a keyboard-era
+layout. This replaces the input layer — and `libs/sudoku-core` needed **zero**
+changes, because every write already took an explicit index.
+
+- [x] `composables/useDigitFirst.ts` — two input models, one rule: *a cell is
+      selected → a digit tap writes into it; nothing is selected → it arms that
+      digit*. Armed, every cell tap places it and the selection stays null, so
+      the mode persists. No escape hatch needed: `setValue` already erases when
+      the digit is re-entered, so place and un-place are the same tap.
+- [x] `composables/useLongPress.ts` — hold a digit to pencil it without leaving
+      normal mode; hold a cell to erase. Tap fires on `click`, not `pointerup`,
+      so keyboard activation survives; a long-press raises a flag that swallows
+      the trailing click.
+- [x] `composables/useHaptics.ts` — Capacitor plugin on device, `navigator.vibrate`
+      in a browser, no-op elsewhere. The warning buzz is gated on auto-check, or
+      it would quietly reveal every wrong digit.
+- [x] Fluid board: `repeat(9, 1fr)` + `aspect-ratio: 1`, sized by its container
+- [x] Pad moved into a pinned `IonFooter`, 5×2 keys plus erase
+- [x] Six secondary controls demoted into an `IonActionSheet`
+- [x] Tab-bar icons and `dark.system.css`
+
+**Gate:** ✅ 258 unit tests, 60 e2e green across Chromium, Firefox and WebKit at
+360×640 and 390×844.
+
+### Things learned the hard way
+
+- **The board never fitted a phone.** `--cell-size: 2.5rem` with
+  `width: max-content` resolved to a fixed 380px inside a padded `IonContent` —
+  it overflowed every device narrower than ~410px, and a 360px Android clipped
+  it badly. Sizing had to move from the cell *up* to the container; cells are
+  `100%` of a grid track now and the container carries the one clamp.
+- **Ionic 9 latches `disabled` and `aria-*` and never lets go.** `ion-button`
+  copies them onto its inner shadow button at hydration and does not re-sync, so
+  a binding that flips back to false leaves the control permanently dead. This
+  had already shipped: *New game* was unclickable after the first generate, and
+  the browser proved a rebuilt *Undo* stayed disabled even after a move. Setting
+  the JS property back to `false` does not clear the attribute — verified live.
+  `aria-disabled` fails identically, so it is not a workaround. The pad's action
+  row is native `<button>`s now, like the digit keys always were; the header's
+  *New game* drops the binding entirely and lets its changing label carry the
+  state. Still present on `EnterView` and `SolverView`.
+- **Tap belongs on `click`, not `pointerup`.** Binding it to `pointerup` felt
+  more responsive but silently killed keyboard activation of the 81 cell
+  buttons, which produce a `click` and no pointer events at all.
+- **A pnpm monorepo hides Capacitor plugins.** `cap sync` discovers them from
+  the *app's* `package.json`, not the workspace root, so haptics installed at
+  the root synced as "Found 0 plugins" and would have silently done nothing on
+  device. Only caught by reading the generated `capacitor.plugins.json`.
+
+---
+
+## Phase 8 — The Pinia exercise
 
 Only after the game is complete and green.
 
