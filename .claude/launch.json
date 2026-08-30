@@ -3,14 +3,14 @@
   "configurations": [
     {
       "name": "sudoku-web",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["nx", "serve", "sudoku-web"],
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "nx", "serve", "sudoku-web"],
       "port": 4200
     },
     {
       "name": "sudoku-mobile",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["nx", "serve", "sudoku-mobile"],
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "nx", "serve", "sudoku-mobile"],
       "port": 4201,
       "autoPort": true
     }

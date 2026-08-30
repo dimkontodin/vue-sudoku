@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "format": "prettier --write apps/sudoku-web/src apps/sudoku-mobile/src libs/sudoku-core/src",
     "lint:oxlint": "oxlint apps/sudoku-web/src apps/sudoku-mobile/src libs/sudoku-core/src --fix"
   },
   "private": true,

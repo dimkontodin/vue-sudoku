@@ -39,42 +39,42 @@ pnpm install
 ### Develop
 
 ```sh
-npx nx serve sudoku-web
-npx nx serve sudoku-mobile
+pnpm nx serve sudoku-web
+pnpm nx serve sudoku-mobile
 ```
 
 ### Type-check, build
 
 ```sh
-npx nx run-many -t build
+pnpm nx run-many -t build
 ```
 
 ### Unit tests ([Vitest](https://vitest.dev/))
 
 ```sh
-npx nx run-many -t test
+pnpm nx run-many -t test
 ```
 
 ### End-to-end tests ([Playwright](https://playwright.dev))
 
 ```sh
 # install browsers on first run
-npx playwright install
+pnpm exec playwright install
 
-npx nx run-many -t e2e
+pnpm nx run-many -t e2e
 ```
 
 ### Lint & format
 
 ```sh
-npx nx run-many -t lint
+pnpm nx run-many -t lint
 pnpm format
 ```
 
 ### Mobile: open in Android Studio
 
 ```sh
-npx nx run sudoku-mobile:open:android
+pnpm nx run sudoku-mobile:open:android
 ```
 
 ## Recommended IDE Setup

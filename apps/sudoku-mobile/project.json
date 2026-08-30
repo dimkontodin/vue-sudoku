@@ -5,7 +5,7 @@
       "executor": "nx:run-commands",
       "dependsOn": ["build"],
       "options": {
-        "command": "npx cap sync",
+        "command": "pnpm exec cap sync",
         "cwd": "apps/sudoku-mobile"
       }
     },
@@ -18,11 +18,11 @@
       },
       "configurations": {
         "android": {
-          "command": "npx cap open android",
+          "command": "pnpm exec cap open android",
           "cwd": "apps/sudoku-mobile"
         },
         "ios": {
-          "command": "npx cap open ios",
+          "command": "pnpm exec cap open ios",
           "cwd": "apps/sudoku-mobile"
         }
       }

@@ -1,15 +1,42 @@
 import { BOX_SIZE, CELLS, SIZE } from './constants'
 
+function computeRowOf(): Uint8Array {
+  const table = new Uint8Array(CELLS)
+  for (let i = 0; i < CELLS; i++) table[i] = Math.floor(i / SIZE)
+  return table
+}
+
+function computeColOf(): Uint8Array {
+  const table = new Uint8Array(CELLS)
+  for (let i = 0; i < CELLS; i++) table[i] = i % SIZE
+  return table
+}
+
+function computeBoxOf(row: Uint8Array, col: Uint8Array): Uint8Array {
+  const table = new Uint8Array(CELLS)
+  for (let i = 0; i < CELLS; i++) {
+    table[i] = Math.floor(row[i]! / BOX_SIZE) * BOX_SIZE + Math.floor(col[i]! / BOX_SIZE)
+  }
+  return table
+}
+
+// Precomputed once — row/col/box never change for a given index, so a table
+// lookup replaces the division/modulo that would otherwise run on every call
+// from the solver's hot paths (peer computation, fish/intersection scans, ...).
+const ROW_OF = computeRowOf()
+const COL_OF = computeColOf()
+const BOX_OF = computeBoxOf(ROW_OF, COL_OF)
+
 export function rowOf(index: number): number {
-  return Math.floor(index / SIZE)
+  return ROW_OF[index]!
 }
 
 export function colOf(index: number): number {
-  return index % SIZE
+  return COL_OF[index]!
 }
 
 export function boxOf(index: number): number {
-  return Math.floor(rowOf(index) / BOX_SIZE) * BOX_SIZE + Math.floor(colOf(index) / BOX_SIZE)
+  return BOX_OF[index]!
 }
 
 export function indexAt(row: number, col: number): number {
