@@ -20,6 +20,12 @@ const props = defineProps<{
   hintPattern?: ReadonlySet<number>
   /** Cells that hint's step would act on. */
   hintTargets?: ReadonlySet<number>
+  /**
+   * Which digit to light up across the board. Defaults to the selected cell's
+   * value; the enter screen overrides it with the digit armed for entry, so
+   * you can see where that digit already sits while placing it.
+   */
+  highlightValue?: number
 }>()
 
 const emit = defineEmits<{ select: [index: number] }>()
@@ -32,9 +38,10 @@ const peerIndices = computed(() => {
   return new Set(peersOf(props.selectedIndex))
 })
 
-const selectedValue = computed(() =>
-  props.selectedIndex === null ? 0 : (props.board[props.selectedIndex] ?? 0),
-)
+const highlighted = computed(() => {
+  if (props.highlightValue !== undefined) return props.highlightValue
+  return props.selectedIndex === null ? 0 : (props.board[props.selectedIndex] ?? 0)
+})
 
 const cells = computed(() =>
   Array.from({ length: CELLS }, (_, index) => {
@@ -47,7 +54,7 @@ const cells = computed(() =>
       isSelected: props.selectedIndex === index,
       isPeer: peerIndices.value.has(index),
       // Only highlight matching digits other than the selected cell itself.
-      isSameValue: value !== 0 && value === selectedValue.value && props.selectedIndex !== index,
+      isSameValue: value !== 0 && value === highlighted.value && props.selectedIndex !== index,
       hasConflict: props.conflicts.has(index),
       isIncorrect: props.incorrect.has(index),
       isHintPattern: props.hintPattern?.has(index) ?? false,
