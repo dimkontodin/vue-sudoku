@@ -1,5 +1,22 @@
 import { onScopeDispose } from 'vue'
-import type { SudokuGame } from './useSudoku'
+
+/**
+ * The slice of a board the keyboard actually drives.
+ *
+ * An interface rather than `SudokuGame` so the enter screen's grid — which has
+ * no notes and no undo stack — can be typed into with the same adapter. The
+ * optional members are simply not offered by that caller, and their keys go
+ * unhandled instead of throwing.
+ */
+export interface BoardKeyboardTarget {
+  moveSelection(rowDelta: number, colDelta: number): void
+  inputDigit(digit: number): void
+  erase(): void
+  select(index: number | null): void
+  undo?: () => unknown
+  redo?: () => unknown
+  toggleNoteMode?: () => void
+}
 
 export interface UseBoardKeyboardOptions {
   /** Where to listen. Defaults to `window`. */
@@ -20,7 +37,10 @@ const ARROW_DELTAS: Record<string, [row: number, col: number]> = {
  * purely an input adapter, which is why it takes the game rather than creating
  * one, and why it is trivially testable by dispatching KeyboardEvents.
  */
-export function useBoardKeyboard(game: SudokuGame, options: UseBoardKeyboardOptions = {}): void {
+export function useBoardKeyboard(
+  game: BoardKeyboardTarget,
+  options: UseBoardKeyboardOptions = {},
+): void {
   const { isEnabled } = options
   const target = options.target ?? globalThis.window
   if (!target) return
@@ -45,11 +65,11 @@ export function useBoardKeyboard(game: SudokuGame, options: UseBoardKeyboardOpti
     if (keyEvent.ctrlKey || keyEvent.metaKey) {
       const key = keyEvent.key.toLowerCase()
       if (key === 'z') {
-        if (keyEvent.shiftKey) game.redo()
-        else game.undo()
+        if (keyEvent.shiftKey) game.redo?.()
+        else game.undo?.()
         keyEvent.preventDefault()
       } else if (key === 'y') {
-        game.redo()
+        game.redo?.()
         keyEvent.preventDefault()
       }
       return
@@ -70,7 +90,7 @@ export function useBoardKeyboard(game: SudokuGame, options: UseBoardKeyboardOpti
         return
       case 'n':
       case 'N':
-        game.toggleNoteMode()
+        game.toggleNoteMode?.()
         keyEvent.preventDefault()
         return
       case 'Escape':

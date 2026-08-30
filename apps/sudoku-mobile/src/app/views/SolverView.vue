@@ -1,22 +1,45 @@
 <script setup lang="ts">
-import { computed, onMounted, shallowRef } from 'vue'
+import { computed, onMounted, shallowRef, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { IonButton, IonContent, IonHeader, IonLabel, IonPage, IonSegment, IonSegmentButton, IonTitle, IonToolbar } from '@ionic/vue'
-import { CELLS, boxOf, useSolver } from '@vue-sudoku/sudoku-core'
+import {
+  CELLS,
+  boxOf,
+  usePuzzleAnalysis,
+  usePuzzleHandoff,
+  useSolver,
+  useSolverHandoff,
+} from '@vue-sudoku/sudoku-core'
 import type { Difficulty, SolveSpeed } from '@vue-sudoku/sudoku-core'
 import { createSudokuClient } from '../../workers/sudokuClient'
 
 // Standalone visualiser, same as the web app's SolverView: it renders a bare
 // grid because it shows a search in progress, which has no givens/selection.
+//
+// The puzzle it searches comes from the generator or straight from the Enter
+// tab, and the same analysis the Enter tab offers sits under the grid here:
+// what brute force proves (a solution exists) and what grading explains (how a
+// person would get there) are different questions about the same board.
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert']
 const SPEEDS: SolveSpeed[] = ['slow', 'medium', 'fast', 'instant']
 
+const router = useRouter()
 const solver = useSolver(createSudokuClient)
+const solverHandoff = useSolverHandoff()
+const playHandoff = usePuzzleHandoff()
 
 const puzzle = shallowRef<Uint8Array | null>(null)
 const difficulty = shallowRef<Difficulty>('hard')
 const speed = shallowRef<SolveSpeed>('fast')
 const isGenerating = shallowRef(false)
+/** True while the grid on screen came from the Enter tab, not the generator. */
+const isCustom = shallowRef(false)
+
+const analysis = usePuzzleAnalysis(() => puzzle.value)
+
+// A verdict belongs to the grid it was run on, so a new puzzle drops it.
+watch(puzzle, () => analysis.reset())
 
 const cells = computed(() => {
   const source = solver.board.value ?? puzzle.value
@@ -36,6 +59,7 @@ async function newPuzzle() {
   try {
     const result = await solver.generate(difficulty.value)
     puzzle.value = result.puzzle
+    isCustom.value = false
   } finally {
     isGenerating.value = false
   }
@@ -45,7 +69,27 @@ function startSolve() {
   if (puzzle.value) solver.solve(puzzle.value, speed.value)
 }
 
-onMounted(newPuzzle)
+/** Sends a graded, uniquely-solvable grid on to the game. */
+function play() {
+  const solution = analysis.validation.value?.solution
+  if (!puzzle.value || !analysis.canPlay.value || !solution) return
+
+  playHandoff.set({ puzzle: puzzle.value.slice(), solution: solution.slice() })
+  void router.push('/tabs/play')
+}
+
+onMounted(() => {
+  // A grid handed over from the Enter tab wins over generating one: the user
+  // asked for this puzzle specifically, and it may well be unsolvable or
+  // ambiguous, which is exactly what they came here to watch.
+  const entered = solverHandoff.take()
+  if (entered) {
+    puzzle.value = entered
+    isCustom.value = true
+    return
+  }
+  void newPuzzle()
+})
 </script>
 
 <template>
@@ -106,6 +150,11 @@ onMounted(newPuzzle)
           </div>
         </div>
 
+        <p v-if="isCustom" class="solver__source">
+          Searching the puzzle you entered.
+          <RouterLink to="/tabs/enter">Back to editing</RouterLink>
+        </p>
+
         <div class="board" role="grid" aria-label="Sudoku board">
           <div
             v-for="cell in cells"
@@ -127,6 +176,53 @@ onMounted(newPuzzle)
         </dl>
 
         <p v-if="solver.errorMessage.value" class="error">{{ solver.errorMessage.value }}</p>
+
+        <!--
+          The same checks the Enter tab offers, on whatever grid is loaded here:
+          is it valid, does it have exactly one solution, and which techniques
+          would a person need? Brute force answers none of those.
+        -->
+        <div class="analysis">
+          <div class="analysis__buttons">
+            <button
+              type="button"
+              class="analysis__btn analysis__btn--outline"
+              :disabled="!puzzle || analysis.isChecking.value"
+              @click="analysis.check()"
+            >
+              {{ analysis.isChecking.value ? 'Analysing…' : 'Analyse' }}
+            </button>
+            <button
+              type="button"
+              class="analysis__btn analysis__btn--solid"
+              :disabled="!analysis.canPlay.value"
+              @click="play"
+            >
+              Play it
+            </button>
+          </div>
+
+          <p
+            v-if="analysis.validation.value"
+            class="analysis__verdict"
+            :class="analysis.validation.value.verdict === 'unique' ? 'is-good' : 'is-bad'"
+            role="status"
+          >
+            {{ analysis.validation.value.message }} — {{ analysis.validation.value.clues }} clues
+          </p>
+
+          <div v-if="analysis.grading.value" class="analysis__grading">
+            <p>
+              Graded <strong>{{ analysis.grading.value.difficulty }}</strong>
+              <template v-if="!analysis.grading.value.solved">
+                — though it needs techniques beyond this solver, so it may be harder still.
+              </template>
+            </p>
+            <p v-if="analysis.grading.value.techniques.length" class="analysis__techniques">
+              Techniques used: {{ analysis.grading.value.techniques.join(', ') }}
+            </p>
+          </div>
+        </div>
       </div>
     </IonContent>
   </IonPage>
@@ -156,7 +252,19 @@ onMounted(newPuzzle)
   margin: 0;
 }
 
-.solver__btn {
+.solver__source {
+  width: 100%;
+  margin: calc(var(--gap-lg) * -1 + var(--gap-xs)) 0 0;
+  color: var(--ion-color-medium, #92949c);
+  font-size: 0.8rem;
+}
+
+.solver__source a {
+  color: var(--ion-color-primary, #3880ff);
+}
+
+.solver__btn,
+.analysis__btn {
   height: 27.3px;
   padding: 0 12px;
   border-radius: var(--radius-sm);
@@ -169,19 +277,22 @@ onMounted(newPuzzle)
   user-select: none;
 }
 
-.solver__btn--outline {
+.solver__btn--outline,
+.analysis__btn--outline {
   border: 1.6px solid var(--ion-color-primary, #3880ff);
   background: transparent;
   color: var(--ion-color-primary, #3880ff);
 }
 
-.solver__btn--solid {
+.solver__btn--solid,
+.analysis__btn--solid {
   border: 0;
   background: var(--ion-color-primary, #3880ff);
   color: var(--ion-color-primary-contrast, #fff);
 }
 
-.solver__btn:disabled {
+.solver__btn:disabled,
+.analysis__btn:disabled {
   opacity: 0.5;
   pointer-events: none;
 }
@@ -240,6 +351,50 @@ onMounted(newPuzzle)
   margin: 0;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+
+.analysis {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gap-sm);
+  width: 100%;
+}
+
+.analysis__buttons {
+  display: flex;
+  gap: var(--gap-xs);
+}
+
+.analysis__verdict {
+  width: 100%;
+  padding: var(--gap-sm) var(--gap-md);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.analysis__verdict.is-good {
+  background: color-mix(in srgb, var(--ion-color-primary, #3880ff) 14%, transparent);
+  color: var(--ion-color-primary, #3880ff);
+}
+
+.analysis__verdict.is-bad {
+  background: color-mix(in srgb, var(--ion-color-danger, #eb445a) 14%, transparent);
+  color: var(--ion-color-danger, #eb445a);
+}
+
+.analysis__grading {
+  width: 100%;
+  font-size: 0.8rem;
+}
+
+.analysis__grading strong {
+  text-transform: capitalize;
+}
+
+.analysis__techniques {
+  color: var(--ion-color-medium, #92949c);
+  font-size: 0.75rem;
 }
 
 .error {

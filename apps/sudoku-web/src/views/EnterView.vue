@@ -1,98 +1,138 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { CELLS } from '@vue-sudoku/sudoku-core'
-import { parseBoard, validatePuzzle, type Validation } from '@vue-sudoku/sudoku-core'
-import { solveLogically } from '@vue-sudoku/sudoku-core'
-import { TECHNIQUE_META } from '@vue-sudoku/sudoku-core'
-import { usePuzzleHandoff } from '@vue-sudoku/sudoku-core'
+import { useBoardKeyboard } from '@vue-sudoku/sudoku-core'
+import { useGridEntry } from '@vue-sudoku/sudoku-core'
+import { usePuzzleAnalysis } from '@vue-sudoku/sudoku-core'
+import { usePuzzleHandoff, useSolverHandoff } from '@vue-sudoku/sudoku-core'
 import SudokuBoard from '@/components/SudokuBoard.vue'
 
 const router = useRouter()
 const handoff = usePuzzleHandoff()
+const solverHandoff = useSolverHandoff()
 
-const text = ref('')
-const validation = shallowRef<Validation | null>(null)
-const isChecking = shallowRef(false)
+const entry = useGridEntry()
+const analysis = usePuzzleAnalysis(() => entry.board.value)
 
-const parsed = computed(() => parseBoard(text.value))
-
-const board = computed(() => parsed.value.board ?? new Uint8Array(CELLS))
+const EXAMPLE = '..............3.85..1.2.......5.7.....4...1...9.......5......73..2.1........4...9'
+const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 const emptyNotes = new Uint16Array(CELLS)
 const NO_CELLS: ReadonlySet<number> = new Set()
 
-const charCount = computed(() => text.value.replace(/\s/g, '').length)
+// The same keys as the game, minus the ones a clue grid has no use for. Its
+// own guard already ignores keystrokes aimed at the paste box.
+useBoardKeyboard(entry)
+
+const showPaste = shallowRef(false)
 
 const parseMessage = computed(() => {
-  if (text.value.trim() === '') return ''
-  if (parsed.value.error === 'characters') return 'Only digits, dots and underscores, please.'
-  if (parsed.value.error === 'length') return `${charCount.value} of ${CELLS} cells.`
+  if (entry.parseError.value === 'characters') return 'Only digits, dots and underscores, please.'
+  if (entry.parseError.value === 'length') return `${entry.charCount.value} of ${CELLS} cells.`
   return ''
 })
 
-/** Grades an accepted puzzle by which techniques it actually needs. */
-const grading = computed(() => {
-  if (validation.value?.verdict !== 'unique' || !parsed.value.board) return null
-
-  const result = solveLogically(parsed.value.board, { allowUniquenessTechniques: true })
-  const names = [...result.used]
-    .map((id) => TECHNIQUE_META[id])
-    .sort((a, b) => a.tier - b.tier || a.score - b.score)
-    .map((meta) => meta.name)
-
-  return { difficulty: result.difficulty, solved: result.solved, names }
-})
-
-// Re-validating on every keystroke would run a solver per character.
-watch(text, () => {
-  validation.value = null
-})
-
-function check() {
-  if (!parsed.value.board) return
-  isChecking.value = true
-  try {
-    validation.value = validatePuzzle(parsed.value.board)
-  } finally {
-    isChecking.value = false
-  }
-}
+// Re-validating on every keystroke would run a solver per digit, so a check is
+// only ever as current as the grid it ran on. Watching the board rather than
+// clearing it from each handler catches every route in — pad, keyboard, paste.
+watch(entry.board, () => analysis.reset())
 
 function play() {
-  if (validation.value?.verdict !== 'unique' || !parsed.value.board || !validation.value.solution) {
-    return
-  }
+  const validation = analysis.validation.value
+  if (!analysis.canPlay.value || !validation?.solution) return
 
   handoff.set({
-    puzzle: parsed.value.board.slice(),
-    solution: validation.value.solution.slice(),
+    puzzle: entry.board.value.slice(),
+    solution: validation.solution.slice(),
   })
   void router.push('/')
 }
 
+/** Hands the grid to the visualiser rather than answering it here. */
+function watchSolver() {
+  if (!analysis.canSolve.value) return
+  solverHandoff.set(entry.board.value)
+  void router.push('/solver')
+}
+
 function loadExample() {
-  text.value = '..............3.85..1.2.......5.7.....4...1...9.......5......73..2.1........4...9'
+  entry.text.value = EXAMPLE
 }
 
 function clear() {
-  text.value = ''
-  validation.value = null
+  entry.clear()
 }
 
-const conflicts = computed<ReadonlySet<number>>(() => validation.value?.conflicts ?? NO_CELLS)
+const conflicts = computed<ReadonlySet<number>>(() =>
+  analysis.validation.value?.verdict === 'conflicting'
+    ? analysis.validation.value.conflicts
+    : entry.conflicts.value,
+)
 </script>
 
 <template>
   <section class="enter">
     <p class="enter__intro">
-      Paste or type a puzzle: 81 cells, row by row, using a dot or zero for blanks. Whitespace and
-      line breaks are ignored, so a grid copied from anywhere should work.
+      Click a cell and type, or pick a digit and click every square it belongs in. Arrow keys move,
+      0 or Backspace clears. Already have the puzzle as text? Paste it below.
     </p>
 
+    <SudokuBoard
+      :board="entry.board.value"
+      :notes="emptyNotes"
+      :puzzle="entry.board.value"
+      :selected-index="entry.selectedIndex.value"
+      :highlight-value="entry.highlightValue.value"
+      :conflicts="conflicts"
+      :incorrect="NO_CELLS"
+      @select="entry.onCellTap"
+    />
+
+    <div class="pad">
+      <button
+        v-for="digit in DIGITS"
+        :key="digit"
+        type="button"
+        class="pad__digit"
+        :class="{
+          'is-active': entry.activeDigit.value === digit,
+          'is-exhausted': entry.remainingCounts.value[digit - 1] === 0,
+        }"
+        :aria-pressed="entry.activeDigit.value === digit"
+        :aria-label="`Enter ${digit}, ${entry.remainingCounts.value[digit - 1] ?? 0} left to place`"
+        @click="entry.onDigitTap(digit)"
+      >
+        <span class="pad__digit-value">{{ digit }}</span>
+        <span class="pad__digit-count" aria-hidden="true">
+          {{ entry.remainingCounts.value[digit - 1] ?? 0 }}
+        </span>
+      </button>
+
+      <button type="button" class="pad__digit pad__digit--erase" @click="entry.erase()">
+        Erase
+      </button>
+    </div>
+
+    <div class="enter__meta">
+      <span :class="{ 'is-ready': entry.clues.value > 0 }">{{ entry.clues.value }} clues</span>
+      <span v-if="parseMessage" class="enter__parse">{{ parseMessage }}</span>
+      <span class="enter__spacer" />
+      <button type="button" class="enter__link" @click="showPaste = !showPaste">
+        {{ showPaste ? 'Hide text' : 'Paste or copy' }}
+      </button>
+      <button type="button" class="enter__link" @click="loadExample">Load an example</button>
+      <button type="button" class="enter__link" @click="clear">Clear</button>
+    </div>
+
+    <!--
+      Bound straight to the grid both ways: typing here rewrites the board, and
+      editing the board rewrites this. useGridEntry owns that loop.
+    -->
     <textarea
-      v-model="text"
+      v-if="showPaste"
+      v-model="entry.text.value"
       class="enter__input"
-      rows="4"
+      rows="3"
       spellcheck="false"
       autocapitalize="off"
       autocomplete="off"
@@ -100,37 +140,29 @@ const conflicts = computed<ReadonlySet<number>>(() => validation.value?.conflict
       placeholder="..............3.85..1.2......."
     />
 
-    <div class="enter__meta">
-      <span :class="{ 'is-ready': charCount === CELLS }">{{ charCount }} / {{ CELLS }}</span>
-      <span v-if="parseMessage" class="enter__parse">{{ parseMessage }}</span>
-      <span class="enter__spacer" />
-      <button type="button" class="enter__link" @click="loadExample">Load an example</button>
-      <button type="button" class="enter__link" @click="clear">Clear</button>
-    </div>
-
-    <SudokuBoard
-      :board="board"
-      :notes="emptyNotes"
-      :puzzle="board"
-      :selected-index="null"
-      :conflicts="conflicts"
-      :incorrect="NO_CELLS"
-    />
-
     <div class="enter__actions">
       <button
         type="button"
         class="enter__button"
-        :disabled="parsed.error !== null || isChecking"
-        @click="check"
+        :disabled="entry.isEmpty.value || analysis.isChecking.value"
+        @click="analysis.check()"
       >
-        {{ isChecking ? 'Checking…' : 'Check puzzle' }}
+        {{ analysis.isChecking.value ? 'Checking…' : 'Check puzzle' }}
+      </button>
+
+      <button
+        type="button"
+        class="enter__button"
+        :disabled="!analysis.canSolve.value"
+        @click="watchSolver"
+      >
+        Watch the solver
       </button>
 
       <button
         type="button"
         class="enter__button is-primary"
-        :disabled="validation?.verdict !== 'unique'"
+        :disabled="!analysis.canPlay.value"
         @click="play"
       >
         Play it
@@ -138,26 +170,30 @@ const conflicts = computed<ReadonlySet<number>>(() => validation.value?.conflict
     </div>
 
     <p
-      v-if="validation"
+      v-if="analysis.validation.value"
       class="enter__verdict"
-      :class="validation.verdict === 'unique' ? 'is-good' : 'is-bad'"
+      :class="analysis.validation.value.verdict === 'unique' ? 'is-good' : 'is-bad'"
       role="status"
     >
-      {{ validation.message }}
-      <span class="enter__clues">{{ validation.clues }} clues</span>
+      {{ analysis.validation.value.message }}
+      <span class="enter__clues">{{ analysis.validation.value.clues }} clues</span>
     </p>
 
-    <div v-if="grading" class="enter__grading">
+    <div v-if="analysis.grading.value" class="enter__grading">
       <p>
-        Graded <strong>{{ grading.difficulty }}</strong>
-        <template v-if="!grading.solved">
+        Graded <strong>{{ analysis.grading.value.difficulty }}</strong>
+        <template v-if="!analysis.grading.value.solved">
           — though it needs techniques beyond this solver, so it may be harder still.
         </template>
       </p>
-      <p v-if="grading.names.length" class="enter__techniques">
-        Techniques used: {{ grading.names.join(', ') }}
+      <p v-if="analysis.grading.value.techniques.length" class="enter__techniques">
+        Techniques used: {{ analysis.grading.value.techniques.join(', ') }}
       </p>
     </div>
+
+    <p v-else-if="analysis.canSolve.value" class="enter__techniques">
+      No grade — grading needs a single solution. The solver will still search it.
+    </p>
   </section>
 </template>
 
@@ -195,8 +231,69 @@ const conflicts = computed<ReadonlySet<number>>(() => validation.value?.conflict
   }
 }
 
+// Ten keys on one row: the nine digits plus Erase, sized off the board width
+// so the pad lines up with the grid above it.
+.pad {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: $gap-xs;
+  width: 100%;
+}
+
+.pad__digit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: $gap-xs 0;
+  border: 1px solid var(--color-border);
+  border-radius: $radius-sm;
+  background: var(--color-surface-raised);
+  font-variant-numeric: tabular-nums;
+
+  &:hover {
+    border-color: var(--color-primary);
+  }
+
+  // Armed for digit-first entry: every cell clicked now takes this digit.
+  &.is-active {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-primary-contrast);
+    font-weight: 600;
+  }
+
+  // All nine placed. Still clickable — it is a legal way to take one back out.
+  &.is-exhausted:not(.is-active) {
+    opacity: 0.45;
+  }
+}
+
+.pad__digit--erase {
+  justify-content: center;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+}
+
+.pad__digit-value {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.pad__digit-count {
+  color: var(--color-text-muted);
+  font-size: 0.6rem;
+  line-height: 1;
+}
+
+.pad__digit.is-active .pad__digit-count {
+  color: inherit;
+  opacity: 0.8;
+}
+
 .enter__meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: $gap-sm;
   width: 100%;
@@ -293,6 +390,7 @@ const conflicts = computed<ReadonlySet<number>>(() => validation.value?.conflict
 }
 
 .enter__techniques {
+  width: 100%;
   color: var(--color-text-muted);
   font-size: 0.75rem;
 }
