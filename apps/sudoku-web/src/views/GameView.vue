@@ -69,7 +69,15 @@ function persist() {
   })
 }
 
-async function newGame() {
+/**
+ * `target` defaults to the current difficulty (the "New game" button) but can
+ * differ from it (switching bands). The ref is only written once generation
+ * resolves, alongside `game.load()` — never eagerly — so a save that lands
+ * mid-generation can't pair the new difficulty label with the old puzzle.
+ */
+async function newGame(target: Difficulty = difficulty.value) {
+  if (isGenerating.value) return
+
   isGenerating.value = true
   hasWon.value = false
   showWinDialog.value = false
@@ -77,10 +85,13 @@ async function newGame() {
   hints.reset()
   timer.pause()
   timer.reset()
+  cancelPendingSave()
   try {
-    game.load(await client.generate(difficulty.value))
+    const generated = await client.generate(target)
+    difficulty.value = target
+    game.load(generated)
     isCustom.value = false
-    stats.recordStart(difficulty.value)
+    stats.recordStart(target)
     timer.start()
     persist()
   } finally {
@@ -90,8 +101,7 @@ async function newGame() {
 
 function selectDifficulty(next: Difficulty) {
   if (next === difficulty.value) return
-  difficulty.value = next
-  newGame()
+  void newGame(next)
 }
 
 function restart() {
@@ -120,6 +130,7 @@ function applyHint() {
   // untouched, and without this the next hint would repeat it forever.
   hints.apply(step)
   suppressHintReset = true
+  game.markHintUsed()
 
   for (const { index, digit } of step.placements) {
     game.select(index)
@@ -208,7 +219,10 @@ onMounted(() => {
   const entered = handoff.take()
   if (entered) {
     game.load(entered)
-    difficulty.value = 'hard'
+    // Ungraded verdicts (ambiguous, too-hard-to-grade) have no band to show —
+    // 'hard' is a reasonable label for "harder than this solver can grade,"
+    // not a stand-in for "we didn't check."
+    difficulty.value = entered.difficulty ?? 'hard'
     isCustom.value = true
     timer.reset()
     timer.start()
@@ -236,7 +250,7 @@ onMounted(() => {
         :disabled="isGenerating"
         @update:model-value="selectDifficulty"
       />
-      <button type="button" class="game__new" :disabled="isGenerating" @click="newGame">
+      <button type="button" class="game__new" :disabled="isGenerating" @click="() => newGame()">
         {{ isGenerating ? 'Generating…' : 'New game' }}
       </button>
     </div>

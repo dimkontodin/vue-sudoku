@@ -376,6 +376,30 @@ describe('useSudoku', () => {
       expect(game.mistakes.value).toBe(0)
     })
 
+    it('does not count a plain setValue as a hint, even when it fills the answer', () => {
+      // Guards the trap behind markHintUsed: a guided hint's placements are
+      // applied through setValue() like any other move, so nothing about
+      // setValue itself can be the thing that counts a hint as used.
+      const { puzzle, blankIndex, answer } = nearlySolved()
+      const game = useSudoku(puzzle)
+
+      game.select(blankIndex)
+      game.setValue(answer)
+
+      expect(game.hintsUsed.value).toBe(0)
+    })
+
+    it('markHintUsed counts a guided hint without touching the board', () => {
+      const { puzzle } = nearlySolved()
+      const game = useSudoku(puzzle)
+      const boardBefore = Array.from(game.board.value)
+
+      game.markHintUsed()
+
+      expect(game.hintsUsed.value).toBe(1)
+      expect(Array.from(game.board.value)).toEqual(boardBefore)
+    })
+
     it('resets both counters on load and reset', () => {
       const { puzzle, blankIndex, answer } = nearlySolved()
       const game = useSudoku(puzzle)

@@ -83,6 +83,7 @@ function play() {
   handoff.set({
     puzzle: entry.board.value.slice(),
     solution: validation.solution.slice(),
+    difficulty: analysis.grading.value?.difficulty ?? null,
   })
   void router.push('/tabs/play')
 }

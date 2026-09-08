@@ -74,7 +74,11 @@ function play() {
   const solution = analysis.validation.value?.solution
   if (!puzzle.value || !analysis.canPlay.value || !solution) return
 
-  playHandoff.set({ puzzle: puzzle.value.slice(), solution: solution.slice() })
+  playHandoff.set({
+    puzzle: puzzle.value.slice(),
+    solution: solution.slice(),
+    difficulty: analysis.grading.value?.difficulty ?? null,
+  })
   void router.push('/tabs/play')
 }
 
