@@ -115,7 +115,14 @@ function persist() {
   })
 }
 
-async function newGame() {
+/**
+ * `target` defaults to the current difficulty (the header's own new-game
+ * button) but can differ from it (switching bands). The ref is only written
+ * once generation resolves, alongside `game.load()` — never eagerly — so a
+ * save that lands mid-generation can't pair the new difficulty label with the
+ * old puzzle.
+ */
+async function newGame(target: Difficulty = difficulty.value) {
   // Guards re-entry in place of a `disabled` binding on the button.
   if (isGenerating.value) return
 
@@ -127,10 +134,13 @@ async function newGame() {
   input.disarm()
   timer.pause()
   timer.reset()
+  cancelPendingSave()
   try {
-    game.load(await client.generate(difficulty.value))
+    const generated = await client.generate(target)
+    difficulty.value = target
+    game.load(generated)
     isCustom.value = false
-    stats.recordStart(difficulty.value)
+    stats.recordStart(target)
     timer.start()
     persist()
   } finally {
@@ -140,8 +150,7 @@ async function newGame() {
 
 function selectDifficulty(next: Difficulty) {
   if (next === difficulty.value) return
-  difficulty.value = next
-  void newGame()
+  void newGame(next)
 }
 
 function restart() {
@@ -295,7 +304,7 @@ onUnmounted(() => client.dispose())
                left this permanently unclickable after the first generate. The
                changing label carries the state instead, and newGame() guards
                its own re-entry. -->
-          <IonButton @click="newGame">
+          <IonButton @click="() => newGame()">
             {{ isGenerating ? 'Generating…' : 'New game' }}
           </IonButton>
           <IonButton aria-label="More actions" @click="showActions = true">
