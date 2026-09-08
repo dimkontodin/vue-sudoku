@@ -116,4 +116,22 @@ describe('GameView', () => {
     expect(savedAfterGeneration!.puzzle[0]).toBe(2)
     expect(savedAfterGeneration!.difficulty).toBe('expert')
   })
+
+  it('loads a puzzle handed off from /enter at its graded difficulty, not a hardcoded one', async () => {
+    usePuzzleHandoff().set({
+      ...markedPuzzle(3),
+      difficulty: 'medium',
+    })
+
+    mount(GameView, { global: { stubs: STUBS } })
+    await flushPromises()
+
+    // A handed-off puzzle plays immediately — no generation call for it.
+    expect(generateCalls).toHaveLength(0)
+
+    const saved = readSavedGame()
+    expect(saved).not.toBeNull()
+    expect(saved!.puzzle[0]).toBe(3)
+    expect(saved!.difficulty).toBe('medium')
+  })
 })

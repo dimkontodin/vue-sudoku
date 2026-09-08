@@ -219,7 +219,10 @@ onMounted(() => {
   const entered = handoff.take()
   if (entered) {
     game.load(entered)
-    difficulty.value = 'hard'
+    // Ungraded verdicts (ambiguous, too-hard-to-grade) have no band to show —
+    // 'hard' is a reasonable label for "harder than this solver can grade,"
+    // not a stand-in for "we didn't check."
+    difficulty.value = entered.difficulty ?? 'hard'
     isCustom.value = true
     timer.reset()
     timer.start()
