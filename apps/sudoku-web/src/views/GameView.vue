@@ -120,6 +120,7 @@ function applyHint() {
   // untouched, and without this the next hint would repeat it forever.
   hints.apply(step)
   suppressHintReset = true
+  game.markHintUsed()
 
   for (const { index, digit } of step.placements) {
     game.select(index)

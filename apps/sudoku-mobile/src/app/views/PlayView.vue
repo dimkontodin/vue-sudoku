@@ -166,6 +166,7 @@ function applyHint() {
   hints.apply(step)
   suppressHintReset = true
   input.disarm()
+  game.markHintUsed()
 
   for (const { index, digit } of step.placements) {
     game.select(index)

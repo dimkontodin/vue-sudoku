@@ -245,6 +245,15 @@ export function useSudoku(initial?: Puzzle, options: UseSudokuOptions = {}) {
     return notesToArray(notes.value[index] ?? 0)
   }
 
+  /**
+   * Counts a hint-panel step as used. `reveal()` counts itself as part of its
+   * own commit; a guided hint's placements go through `setValue()` like any
+   * other move, so the caller applying the step marks it explicitly instead.
+   */
+  function markHintUsed(): void {
+    hintsUsed.value++
+  }
+
   function load(next: Puzzle): void {
     puzzle.value = next.puzzle.slice()
     solution.value = next.solution.slice()
@@ -335,6 +344,7 @@ export function useSudoku(initial?: Puzzle, options: UseSudokuOptions = {}) {
     erase,
     fillNotes,
     reveal,
+    markHintUsed,
     undo,
     redo,
     load,
