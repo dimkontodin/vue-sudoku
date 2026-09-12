@@ -1,0 +1,26 @@
+[package]
+name = "sudoku"
+version = "1.0.0"
+description = "Sudoku desktop app (Tauri shell around sudoku-web)"
+authors = ["dimkontodin"]
+license = "MIT"
+repository = "https://github.com/dimkontodin/vue-sudoku"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "sudoku_lib"
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+log = "0.4"
+tauri = { version = "2.11.3", features = [] }
+tauri-plugin-log = "2"
+
+# Must match the versions wry itself uses (check Cargo.lock after bumping
+# tauri), or the controller `with_webview` hands us won't fit these bindings.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows-core = "0.61"
