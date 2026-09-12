@@ -9,6 +9,9 @@ export default defineConfig(() => ({
   cacheDir: '../../node_modules/.vite/apps/sudoku-web',
   server:{
     port: Number(process.env.PORT) || 4200,
+    // Fail instead of drifting to 4201 (sudoku-mobile's port): the desktop
+    // shell waits on exactly this port and would load the wrong app.
+    strictPort: true,
     host: 'localhost',
   },
   preview:{

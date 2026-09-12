@@ -4,7 +4,10 @@
   "license": "MIT",
   "scripts": {
     "format": "prettier --write apps/sudoku-web/src apps/sudoku-mobile/src libs/sudoku-core/src",
-    "lint:oxlint": "oxlint apps/sudoku-web/src apps/sudoku-mobile/src libs/sudoku-core/src --fix"
+    "lint:oxlint": "oxlint apps/sudoku-web/src apps/sudoku-mobile/src libs/sudoku-core/src --fix",
+    "desktop:dev": "nx run @vue-sudoku/sudoku-desktop:serve",
+    "desktop:build": "nx run @vue-sudoku/sudoku-desktop:build",
+    "desktop:installer": "nx run @vue-sudoku/sudoku-desktop:build:installer"
   },
   "private": true,
   "dependencies": {
@@ -33,6 +36,7 @@
     "@nx/workspace": "23.1.1",
     "@playwright/test": "^1.61.1",
     "@swc/helpers": "~0.5.18",
+    "@tauri-apps/cli": "^2.11.4",
     "@tsconfig/node24": "^24.0.4",
     "@types/jsdom": "^28.0.3",
     "@types/node": "^24.13.3",
