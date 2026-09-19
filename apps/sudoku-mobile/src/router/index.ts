@@ -15,6 +15,11 @@ const router = createRouter({
         { path: 'enter', name: 'enter', component: () => import('../app/views/EnterView.vue') },
         { path: 'solver', name: 'solver', component: () => import('../app/views/SolverView.vue') },
         { path: 'stats', name: 'stats', component: () => import('../app/views/StatsView.vue') },
+        {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('../app/views/SettingsView.vue'),
+        },
       ],
     },
   ],

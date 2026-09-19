@@ -1,10 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { IonButton, IonContent, IonHeader, IonLabel, IonPage, IonSegment, IonSegmentButton, IonTitle, IonToolbar } from '@ionic/vue'
+import {
+  IonButton,
+  IonContent,
+  IonHeader,
+  IonLabel,
+  IonPage,
+  IonSegment,
+  IonSegmentButton,
+  IonTitle,
+  IonToolbar,
+} from '@ionic/vue'
 import {
   CELLS,
   boxOf,
+  colOf,
+  rowOf,
   usePuzzleAnalysis,
   usePuzzleHandoff,
   useSolver,
@@ -50,6 +62,10 @@ const cells = computed(() => {
     value: source[index] ?? 0,
     isClue: (puzzle.value?.[index] ?? 0) !== 0,
     boxShade: boxOf(index) % 2 === 0,
+    // Ported from the web solver. Without these the 3x3 boxes had no
+    // delineation at all here — the grid read as a flat 9x9.
+    edgeRight: colOf(index) % 3 === 2 && colOf(index) !== 8,
+    edgeBottom: rowOf(index) % 3 === 2 && rowOf(index) !== 8,
   }))
 })
 
@@ -103,7 +119,7 @@ onMounted(() => {
       <IonToolbar>
         <IonSegment
           :value="difficulty"
-          @ion-change="difficulty = (($event.detail.value ?? 'hard') as Difficulty)"
+          @ion-change="difficulty = ($event.detail.value ?? 'hard') as Difficulty"
         >
           <IonSegmentButton v-for="option in DIFFICULTIES" :key="option" :value="option">
             <IonLabel>{{ option }}</IonLabel>
@@ -117,7 +133,7 @@ onMounted(() => {
         <div class="solver__controls">
           <IonSegment
             :value="speed"
-            @ion-change="speed = (($event.detail.value ?? 'fast') as SolveSpeed)"
+            @ion-change="speed = ($event.detail.value ?? 'fast') as SolveSpeed"
           >
             <IonSegmentButton v-for="option in SPEEDS" :key="option" :value="option">
               <IonLabel>{{ option }}</IonLabel>
@@ -150,7 +166,9 @@ onMounted(() => {
             >
               Solve
             </button>
-            <IonButton v-else size="small" color="danger" @click="solver.cancel()">Cancel</IonButton>
+            <IonButton v-else size="small" color="danger" @click="solver.cancel()"
+              >Cancel</IonButton
+            >
           </div>
         </div>
 
@@ -159,24 +177,50 @@ onMounted(() => {
           <RouterLink to="/tabs/enter">Back to editing</RouterLink>
         </p>
 
-        <div class="board" role="grid" aria-label="Sudoku board">
+        <!-- role="group", not "grid": a grid needs row/gridcell children, and
+             this is a static read-only picture of a search. Same choice as
+             SudokuBoard.vue. -->
+        <div class="board" role="group" aria-label="Sudoku board">
           <div
             v-for="cell in cells"
             :key="cell.index"
             class="board__cell"
-            :class="{ 'is-clue': cell.isClue, 'is-shaded': cell.boxShade }"
+            :class="{
+              'is-clue': cell.isClue,
+              'is-shaded': cell.boxShade,
+              'is-edge-right': cell.edgeRight,
+              'is-edge-bottom': cell.edgeBottom,
+            }"
           >
             {{ cell.value || '' }}
           </div>
         </div>
 
         <dl class="stats">
-          <div><dt>Status</dt><dd>{{ solver.status.value }}</dd></div>
-          <div><dt>Steps</dt><dd>{{ solver.steps.value.toLocaleString() }}</dd></div>
-          <div><dt>Backtracks</dt><dd>{{ solver.backtracks.value.toLocaleString() }}</dd></div>
-          <div><dt>Depth</dt><dd>{{ solver.depth.value }}</dd></div>
-          <div><dt>Steps/sec</dt><dd>{{ solver.stepsPerSecond.value.toLocaleString() }}</dd></div>
-          <div><dt>Elapsed</dt><dd>{{ Math.round(solver.elapsedMs.value) }} ms</dd></div>
+          <div>
+            <dt>Status</dt>
+            <dd>{{ solver.status.value }}</dd>
+          </div>
+          <div>
+            <dt>Steps</dt>
+            <dd>{{ solver.steps.value.toLocaleString() }}</dd>
+          </div>
+          <div>
+            <dt>Backtracks</dt>
+            <dd>{{ solver.backtracks.value.toLocaleString() }}</dd>
+          </div>
+          <div>
+            <dt>Depth</dt>
+            <dd>{{ solver.depth.value }}</dd>
+          </div>
+          <div>
+            <dt>Steps/sec</dt>
+            <dd>{{ solver.stepsPerSecond.value.toLocaleString() }}</dd>
+          </div>
+          <div>
+            <dt>Elapsed</dt>
+            <dd>{{ Math.round(solver.elapsedMs.value) }} ms</dd>
+          </div>
         </dl>
 
         <p v-if="solver.errorMessage.value" class="error">{{ solver.errorMessage.value }}</p>
@@ -247,6 +291,22 @@ onMounted(() => {
   width: 100%;
 }
 
+/* Ionic uppercases segment labels in MD mode, which pushed "medium" and
+   "instant" past the ~90px a quarter of a phone screen gives them: they
+   rendered as "MEDI…" and "INSTA…". Sentence case at 0.8rem fits whole. */
+ion-header ion-segment-button,
+.solver__controls ion-segment-button {
+  --padding-start: 2px;
+  --padding-end: 2px;
+  min-width: 0;
+}
+
+ion-header ion-label,
+.solver__controls ion-label {
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
 .solver__buttons {
   display: flex;
   gap: var(--gap-xs);
@@ -254,12 +314,21 @@ onMounted(() => {
 
 .solver__buttons ion-button {
   margin: 0;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  min-height: 44px;
+}
+
+.solver__btn,
+.analysis__btn,
+.solver__buttons ion-button {
+  flex: 1 1 0;
 }
 
 .solver__source {
   width: 100%;
   margin: calc(var(--gap-lg) * -1 + var(--gap-xs)) 0 0;
-  color: var(--ion-color-medium, #92949c);
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
 
@@ -269,8 +338,10 @@ onMounted(() => {
 
 .solver__btn,
 .analysis__btn {
-  height: 27.3px;
-  padding: 0 12px;
+  /* Was 27.3px — barely half the 44/48px minimum, and visually unaligned with
+     the IonButton (Cancel) that shares the row. */
+  min-height: 44px;
+  padding: 0 var(--gap-md);
   border-radius: var(--radius-sm);
   font: inherit;
   font-size: 0.8125rem;
@@ -304,8 +375,8 @@ onMounted(() => {
 .board {
   display: grid;
   grid-template-columns: repeat(9, var(--cell-size));
-  border: var(--box-line) solid var(--ion-color-dark, #222428);
-  background: var(--ion-color-medium, #92949c);
+  border: var(--box-line) solid var(--board-box-line);
+  background: var(--board-line);
   gap: var(--grid-line);
 }
 
@@ -329,6 +400,23 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.board__cell.is-edge-right {
+  margin-right: var(--box-line);
+  box-shadow: var(--box-line) 0 0 var(--board-box-line);
+}
+
+.board__cell.is-edge-bottom {
+  margin-bottom: var(--box-line);
+  box-shadow: 0 var(--box-line) 0 var(--board-box-line);
+}
+
+.board__cell.is-edge-right.is-edge-bottom {
+  box-shadow:
+    var(--box-line) 0 0 var(--board-box-line),
+    0 var(--box-line) 0 var(--board-box-line),
+    var(--box-line) var(--box-line) 0 var(--board-box-line);
+}
+
 .stats {
   display: flex;
   flex-wrap: wrap;
@@ -345,7 +433,7 @@ onMounted(() => {
 }
 
 .stats dt {
-  color: var(--ion-color-medium, #92949c);
+  color: var(--text-muted);
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -397,7 +485,7 @@ onMounted(() => {
 }
 
 .analysis__techniques {
-  color: var(--ion-color-medium, #92949c);
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 

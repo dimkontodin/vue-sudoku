@@ -264,7 +264,7 @@ const conflicts = computed<ReadonlySet<number>>(() =>
 }
 
 .enter__intro {
-  color: var(--ion-color-medium, #92949c);
+  color: var(--text-muted);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -327,8 +327,8 @@ const conflicts = computed<ReadonlySet<number>>(() =>
 }
 
 .pad__key-count {
-  color: var(--ion-color-medium, #92949c);
-  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-size: 0.7rem;
   line-height: 1;
 }
 
@@ -347,7 +347,7 @@ const conflicts = computed<ReadonlySet<number>>(() =>
   align-items: center;
   gap: var(--gap-sm);
   width: 100%;
-  color: var(--ion-color-medium, #92949c);
+  color: var(--text-muted);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
 }
@@ -365,12 +365,23 @@ const conflicts = computed<ReadonlySet<number>>(() =>
   color: var(--ion-color-danger, #eb445a);
 }
 
+/* Were 18px-tall underlined text links about 30-47px wide — the worst targets
+   in the app. Same job, sized like buttons. */
 .enter__meta button {
-  border: 0;
-  background: none;
-  color: var(--ion-color-primary, #3880ff);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--gap-sm);
+  border: 1px solid var(--ion-color-light-shade, #d7d8da);
+  border-radius: var(--radius-md);
+  background: var(--ion-color-light, #f4f5f8);
+  color: var(--ion-color-primary, #0054e9);
   font: inherit;
-  text-decoration: underline;
+  font-size: 0.8rem;
+}
+
+.enter__meta button:active {
+  background: var(--ion-color-light-shade, #d7d8da);
 }
 
 .enter__actions {
@@ -381,8 +392,9 @@ const conflicts = computed<ReadonlySet<number>>(() =>
 
 .enter__btn {
   flex: 1;
-  height: 36px;
-  padding: 0 15px;
+  /* Was 36px, under both platform minimums. */
+  min-height: 44px;
+  padding: 0 var(--gap-md);
   border-radius: var(--radius-sm);
   font: inherit;
   font-size: 0.875rem;
@@ -423,8 +435,8 @@ const conflicts = computed<ReadonlySet<number>>(() =>
 }
 
 .enter__verdict.is-good {
-  background: color-mix(in srgb, var(--ion-color-primary, #3880ff) 14%, transparent);
-  color: var(--ion-color-primary, #3880ff);
+  background: color-mix(in srgb, var(--ion-color-success, #2dd55b) 18%, transparent);
+  color: var(--ion-color-success-shade, #1f7a3d);
 }
 
 .enter__verdict.is-bad {
@@ -443,7 +455,7 @@ const conflicts = computed<ReadonlySet<number>>(() =>
 
 .enter__techniques {
   width: 100%;
-  color: var(--ion-color-medium, #92949c);
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 </style>

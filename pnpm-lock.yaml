@@ -184,7 +184,11 @@ importers:
         specifier: ^3.3.7
         version: 3.3.10(typescript@6.0.3)
 
-  apps/sudoku-desktop: {}
+  apps/sudoku-desktop:
+    dependencies:
+      '@vue-sudoku/sudoku-web':
+        specifier: workspace:*
+        version: link:../sudoku-web
 
   apps/sudoku-mobile:
     dependencies:

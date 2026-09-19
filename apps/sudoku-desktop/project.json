@@ -1,5 +1,6 @@
 {
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "@vue-sudoku/sudoku-desktop",
   "implicitDependencies": ["@vue-sudoku/sudoku-web"],
   "targets": {
     "serve": {

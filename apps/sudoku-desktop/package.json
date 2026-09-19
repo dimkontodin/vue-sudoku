@@ -1,5 +1,8 @@
 {
   "name": "@vue-sudoku/sudoku-desktop",
   "version": "1.0.0",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@vue-sudoku/sudoku-web": "workspace:*"
+  }
 }

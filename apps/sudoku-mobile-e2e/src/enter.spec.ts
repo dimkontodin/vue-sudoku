@@ -18,7 +18,9 @@ async function openEnter(page: Page) {
 }
 
 test.describe('Enter tab', () => {
-  test('Check puzzle and Play it become usable once their preconditions are met', async ({ page }) => {
+  test('Check puzzle and Play it become usable once their preconditions are met', async ({
+    page,
+  }) => {
     await openEnter(page)
 
     const check = page.getByRole('button', { name: 'Check puzzle' })
@@ -42,7 +44,9 @@ test.describe('Enter tab', () => {
 
     await playIt.click()
     await expect(board(page)).toBeVisible()
-    await expect(page.locator('ion-title').last()).toHaveText('Play')
+    // The Play screen dropped its ion-title when the header collapsed to one
+    // toolbar; the difficulty button is what identifies it now.
+    await expect(page.getByRole('button', { name: /^Difficulty:/ })).toBeVisible()
   })
 
   test('editing the puzzle after a check re-disables Play it', async ({ page }) => {

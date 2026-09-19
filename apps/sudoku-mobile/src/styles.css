@@ -61,12 +61,11 @@ pre {
 
   /* The board is fluid, not a fixed 380px block: a phone is 360-430px wide and
      the old fixed size overflowed IonContent's padding on every small Android.
-     Width is the real constraint, so height only clamps the board once there is
-     genuinely no room, and never below 17rem — a board too small to tap is
-     worse than a little scrolling. --chrome-h is the header + status + pinned
-     pad + tab bar the board has to share the screen with. */
-  --chrome-h: 22rem;
-  --board-width: min(30rem, calc(100vw - 2rem), max(17rem, calc(100dvh - var(--chrome-h))));
+     Width is one of two constraints; the other is the height IonContent
+     actually has left, which useBoardFit measures and feeds back in as
+     --board-fit. A hand-counted --chrome-h used to stand in for that and
+     under-counted by ~30px, clipping the bottom row behind the pinned pad. */
+  --board-width: min(30rem, calc(100vw - 2rem));
 
   /* Only for the small static previews on Solver/Enter — the Play board sizes
      its cells from the container instead, via `aspect-ratio` on .board. */

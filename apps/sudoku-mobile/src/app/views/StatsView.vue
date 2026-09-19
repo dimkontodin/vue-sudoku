@@ -44,7 +44,9 @@ const formatDate = (iso: string) => {
           </div>
 
           <table class="stats__table">
-            <caption>By difficulty</caption>
+            <caption>
+              By difficulty
+            </caption>
             <thead>
               <tr>
                 <th scope="col">Diff.</th>
@@ -68,7 +70,9 @@ const formatDate = (iso: string) => {
           </table>
 
           <table v-if="stats.recentWins.value.length" class="stats__table">
-            <caption>Recent wins</caption>
+            <caption>
+              Recent wins
+            </caption>
             <thead>
               <tr>
                 <th scope="col">Date</th>
@@ -108,7 +112,7 @@ const formatDate = (iso: string) => {
 }
 
 .stats__empty {
-  color: var(--ion-color-medium, #92949c);
+  color: var(--text-muted);
 }
 
 .stats__totals {
@@ -129,7 +133,7 @@ const formatDate = (iso: string) => {
 }
 
 .stats__totals dt {
-  color: var(--ion-color-medium, #92949c);
+  color: var(--text-muted);
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -157,8 +161,8 @@ const formatDate = (iso: string) => {
 }
 
 .stats__table thead th {
-  color: var(--ion-color-medium, #92949c);
-  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -171,7 +175,7 @@ const formatDate = (iso: string) => {
 
 .stats__table caption {
   padding-bottom: var(--gap-xs);
-  color: var(--ion-color-medium, #92949c);
+  color: var(--text-muted);
   font-size: 0.75rem;
   text-align: left;
   text-transform: uppercase;

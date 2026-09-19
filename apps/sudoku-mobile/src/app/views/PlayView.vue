@@ -8,18 +8,15 @@ import {
   IonFooter,
   IonHeader,
   IonIcon,
-  IonLabel,
   IonPage,
-  IonSegment,
-  IonSegmentButton,
   IonSpinner,
-  IonTitle,
   IonToolbar,
 } from '@ionic/vue'
-import { ellipsisHorizontal } from 'ionicons/icons'
+import { chevronDown, ellipsisHorizontal, pause, play } from 'ionicons/icons'
 import type { ActionSheetButton } from '@ionic/vue'
 import type { Difficulty } from '@vue-sudoku/sudoku-core'
 import {
+  DIFFICULTIES,
   useBoardKeyboard,
   useGameStorage,
   useHints,
@@ -34,6 +31,8 @@ import NumberPad from '../components/NumberPad.vue'
 import HintBanner from '../components/HintBanner.vue'
 import WinModal from '../components/WinModal.vue'
 import { useDigitFirst, type InputFeedback } from '../composables/useDigitFirst'
+import { useGameplayPrefs } from '../composables/useGameplayPrefs'
+import { useBoardFit } from '../composables/useBoardFit'
 import { useHaptics } from '../composables/useHaptics'
 
 // Same composition as the web app's GameView: this is the only "smart"
@@ -50,13 +49,16 @@ const hints = useHints()
 const handoff = usePuzzleHandoff()
 const input = useDigitFirst(game)
 const haptics = useHaptics()
+const prefs = useGameplayPrefs()
+const fit = useBoardFit()
 
 const difficulty = ref<Difficulty>('easy')
 const isGenerating = shallowRef(false)
 const hasWon = shallowRef(false)
 const showWinModal = shallowRef(false)
 const showActions = shallowRef(false)
-const instantFeedback = shallowRef(false)
+const showDifficulties = shallowRef(false)
+const showRestartConfirm = shallowRef(false)
 const isChecking = shallowRef(false)
 const isBestTime = shallowRef(false)
 const isCustom = shallowRef(false)
@@ -68,7 +70,7 @@ useBoardKeyboard(game, { isEnabled: () => !isGenerating.value && !hasWon.value }
 const NO_CELLS: ReadonlySet<number> = new Set()
 
 const incorrect = computed(() =>
-  instantFeedback.value || isChecking.value ? game.incorrectCells.value : NO_CELLS,
+  prefs.autoCheck.value || isChecking.value ? game.incorrectCells.value : NO_CELLS,
 )
 
 const canHint = computed(() => !hasWon.value && game.board.value.some((value) => value === 0))
@@ -85,7 +87,7 @@ function withFeedback(action: () => InputFeedback): void {
   const result = action()
   if (result === 'none') return
 
-  if (instantFeedback.value && game.mistakes.value > mistakesBefore) haptics.warn()
+  if (prefs.autoCheck.value && game.mistakes.value > mistakesBefore) haptics.warn()
   else haptics.tick()
 }
 
@@ -153,6 +155,29 @@ function selectDifficulty(next: Difficulty) {
   void newGame(next)
 }
 
+const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  easy: 'Easy',
+  medium: 'Medium',
+  hard: 'Hard',
+  expert: 'Expert',
+}
+
+const difficultyLabel = computed(() => DIFFICULTY_LABELS[difficulty.value])
+
+/**
+ * Difficulty moved out of a second toolbar and into a sheet off the header.
+ * An IonSegment needs a full row to itself and still truncated every label past
+ * four characters at phone width ("MEDI…", "EXPE…"), and that row was the single
+ * biggest reason the board did not fit a 360x640 screen.
+ */
+const difficultyButtons = computed<ActionSheetButton[]>(() => [
+  ...DIFFICULTIES.map((value) => ({
+    text: value === difficulty.value ? `${DIFFICULTY_LABELS[value]} ✓` : DIFFICULTY_LABELS[value],
+    handler: () => selectDifficulty(value),
+  })),
+  { text: 'Cancel', role: 'cancel' },
+])
+
 function restart() {
   game.reset()
   isChecking.value = false
@@ -209,17 +234,21 @@ function fillNotes() {
  */
 const actionButtons = computed<ActionSheetButton[]>(() => [
   { text: 'Check now', handler: () => void (isChecking.value = true) },
-  {
-    text: `Auto-check ${instantFeedback.value ? 'off' : 'on'}`,
-    handler: () => void (instantFeedback.value = !instantFeedback.value),
-  },
   { text: 'Fill notes', handler: fillNotes },
-  { text: 'Redo', disabled: !game.canRedo.value, handler: redo },
-  { text: `Haptics ${haptics.isEnabled.value ? 'off' : 'on'}`, handler: () => haptics.toggle() },
   { text: 'Reveal a cell', handler: revealCell },
-  { text: 'Restart', role: 'destructive', handler: restart },
+  // Opens a confirmation rather than wiping the board on the first tap. The
+  // sheet has to close before the next one opens, hence the deferred flag.
+  { text: 'Restart', role: 'destructive', handler: () => void (showRestartConfirm.value = true) },
   { text: 'Cancel', role: 'cancel' },
 ])
+
+/** Standing preferences (auto-check, haptics, theme) now live on Settings, and
+    Redo moved next to Undo on the pad — an undo-stack op belongs with Undo, not
+    five items deep in an overflow menu. */
+const restartButtons: ActionSheetButton[] = [
+  { text: 'Restart', role: 'destructive', handler: restart },
+  { text: 'Cancel', role: 'cancel' },
+]
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -299,8 +328,19 @@ onUnmounted(() => client.dispose())
 <template>
   <IonPage>
     <IonHeader>
+      <!-- One toolbar, not two. The difficulty IonSegment used to own a second
+           row: 56px of permanent furniture that pushed the board off the bottom
+           of a 360x640 screen, and it truncated its own labels anyway. -->
       <IonToolbar>
-        <IonTitle>Play</IonTitle>
+        <IonButtons slot="start">
+          <IonButton
+            :aria-label="`Difficulty: ${difficultyLabel}. Change difficulty`"
+            @click="showDifficulties = true"
+          >
+            {{ difficultyLabel }}
+            <IonIcon slot="end" :icon="chevronDown" aria-hidden="true" />
+          </IonButton>
+        </IonButtons>
         <IonButtons slot="end">
           <!-- No `disabled`/`aria-disabled` binding: Ionic 9 latches both onto
                its inner shadow button at hydration and never clears them, which
@@ -315,32 +355,38 @@ onUnmounted(() => client.dispose())
           </IonButton>
         </IonButtons>
       </IonToolbar>
-      <IonToolbar>
-        <IonSegment
-          :value="difficulty"
-          @ion-change="selectDifficulty(($event.detail.value ?? 'easy') as Difficulty)"
-        >
-          <IonSegmentButton value="easy"><IonLabel>Easy</IonLabel></IonSegmentButton>
-          <IonSegmentButton value="medium"><IonLabel>Medium</IonLabel></IonSegmentButton>
-          <IonSegmentButton value="hard"><IonLabel>Hard</IonLabel></IonSegmentButton>
-          <IonSegmentButton value="expert"><IonLabel>Expert</IonLabel></IonSegmentButton>
-        </IonSegment>
-      </IonToolbar>
     </IonHeader>
 
-    <IonContent class="ion-padding">
+    <IonContent class="ion-padding" :ref="fit.setContent">
       <div class="game">
-        <div class="game__status">
-          <button type="button" class="game__timer" @click="timer.toggle()">
-            {{ timer.formatted.value }} {{ timer.isRunning.value ? '❚❚' : '▶' }}
+        <div :ref="fit.setReserve" class="game__status">
+          <button
+            type="button"
+            class="game__timer"
+            :aria-label="timer.isRunning.value ? 'Pause timer' : 'Resume timer'"
+            @click="timer.toggle()"
+          >
+            <IonIcon :icon="timer.isRunning.value ? pause : play" aria-hidden="true" />
+            <span>{{ timer.formatted.value }}</span>
           </button>
-          <span class="game__mistakes">Mistakes <strong>{{ game.mistakes.value }}</strong></span>
+          <span class="game__counts">
+            <!-- The mistakes tally is withheld unless the player asked for it:
+                 with highlighting off the board gives nothing away, but a
+                 counter ticking up as a digit lands still says "that one was
+                 wrong". Hints used carries no such signal. -->
+            <span v-if="prefs.mistakesVisible.value" class="game__count">
+              Mistakes <strong>{{ game.mistakes.value }}</strong>
+            </span>
+            <span class="game__count"
+              >Hints <strong>{{ game.hintsUsed.value }}</strong></span
+            >
+          </span>
         </div>
 
         <IonSpinner v-if="isGenerating" name="crescent" />
 
         <template v-else>
-          <div class="game__board">
+          <div class="game__board" :style="{ '--board-fit': `${fit.available.value}px` }">
             <SudokuBoard
               :board="game.board.value"
               :notes="game.notes.value"
@@ -385,6 +431,22 @@ onUnmounted(() => client.dispose())
           :buttons="actionButtons"
           @did-dismiss="showActions = false"
         />
+
+        <IonActionSheet
+          :is-open="showDifficulties"
+          header="Difficulty"
+          sub-header="Starts a new puzzle"
+          :buttons="difficultyButtons"
+          @did-dismiss="showDifficulties = false"
+        />
+
+        <IonActionSheet
+          :is-open="showRestartConfirm"
+          header="Restart this puzzle?"
+          sub-header="Your entries are cleared. The givens stay."
+          :buttons="restartButtons"
+          @did-dismiss="showRestartConfirm = false"
+        />
       </div>
     </IonContent>
 
@@ -396,6 +458,7 @@ onUnmounted(() => client.dispose())
           :remaining-counts="game.remainingCounts.value"
           :note-mode="game.noteMode.value"
           :can-undo="game.canUndo.value"
+          :can-redo="game.canRedo.value"
           :can-hint="canHint"
           :active-digit="input.activeDigit.value"
           @digit="withFeedback(() => input.onDigitTap($event))"
@@ -403,6 +466,7 @@ onUnmounted(() => client.dispose())
           @erase="eraseSelected"
           @toggle-notes="game.toggleNoteMode()"
           @undo="undo"
+          @redo="redo"
           @hint="hint"
         />
       </IonToolbar>
@@ -411,11 +475,21 @@ onUnmounted(() => client.dispose())
 </template>
 
 <style scoped>
+/* Ionic's toolbar buttons default to 32px tall. Difficulty and New game are
+   primary controls now that the second toolbar is gone, so they get a real
+   target instead of a text-sized one. */
+ion-header ion-button {
+  min-height: 44px;
+  --padding-start: var(--gap-sm);
+  --padding-end: var(--gap-sm);
+}
+
 .game {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--gap-md);
+  min-height: 100%;
 }
 
 .game__status {
@@ -428,7 +502,14 @@ onUnmounted(() => client.dispose())
   font-size: 0.85rem;
 }
 
+/* This is the pause/resume control, so it is sized like one. It used to be a
+   20px-tall run of text whose only affordance was a ❚❚ glyph. */
 .game__timer {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+  min-height: 44px;
+  padding: 0 var(--gap-sm) 0 0;
   border: 0;
   background: none;
   color: inherit;
@@ -437,20 +518,35 @@ onUnmounted(() => client.dispose())
   font-weight: 600;
 }
 
-.game__mistakes {
-  color: var(--ion-color-medium, #92949c);
+.game__counts {
+  display: flex;
+  gap: var(--gap-md);
 }
 
-/* The board sizes itself from this wrapper — see --board-width in styles.css. */
+.game__count {
+  color: var(--text-muted);
+}
+
+/* Two constraints, both real: the width the screen allows (--board-width) and
+   the height IonContent actually has left, measured by useBoardFit. The height
+   one is what stops the bottom row hiding behind the pinned pad. */
 .game__board {
   width: 100%;
-  max-width: var(--board-width);
+  max-width: min(var(--board-width), var(--board-fit, 100vmax));
+  /* On a tall phone the board is limited by width, not height, so there is
+     slack underneath it. Splitting that slack centres the board between the
+     status row and the pad instead of leaving ~100px of dead space above the
+     pad. Collapses to nothing when height is the binding constraint. */
+  margin-block: auto;
 }
 
 ion-footer ion-toolbar {
   --padding-start: var(--gap-sm);
   --padding-end: var(--gap-sm);
   --padding-top: var(--gap-sm);
-  --padding-bottom: var(--gap-sm);
+  /* The pad is the bottom-most thing on screen, so it is the one control that
+     has to clear the home indicator itself — index.html asks for
+     viewport-fit=cover and nothing was consuming the inset. */
+  --padding-bottom: calc(var(--gap-sm) + env(safe-area-inset-bottom, 0px));
 }
 </style>

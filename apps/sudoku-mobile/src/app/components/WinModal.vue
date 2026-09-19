@@ -15,7 +15,14 @@ const emit = defineEmits<{ newGame: []; dismiss: [] }>()
 </script>
 
 <template>
-  <IonModal :is-open="open" @did-dismiss="emit('dismiss')">
+  <!-- A sheet, not a full screen. This is a result card with six lines in it;
+       as a full-size modal it was a mostly-empty page on a tall phone. -->
+  <IonModal
+    :is-open="open"
+    :initial-breakpoint="0.55"
+    :breakpoints="[0, 0.55, 0.9]"
+    @did-dismiss="emit('dismiss')"
+  >
     <div class="win">
       <h2 class="win__title">Solved</h2>
       <p v-if="isBestTime" class="win__badge">New best time</p>
@@ -86,7 +93,7 @@ const emit = defineEmits<{ newGame: []; dismiss: [] }>()
 }
 
 .win__stats dt {
-  color: var(--ion-color-medium, #92949c);
+  color: var(--text-muted);
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;

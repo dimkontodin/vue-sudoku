@@ -82,7 +82,9 @@ const cells = computed(() =>
   gap: var(--grid-line);
   padding: var(--box-line);
   border-radius: var(--radius-sm);
-  background: var(--ion-color-medium, #92949c);
+  /* Own token, not --ion-color-medium: the grid lines have to stay a line in
+     both palettes, and the semantic colours invert. */
+  background: var(--board-line);
 }
 
 /* Box separators without wrapper elements: widen the gap on the last cell of
@@ -90,20 +92,25 @@ const cells = computed(() =>
    the web app's SudokuBoard. Flat selectors (no CSS nesting) to stay plain-CSS. */
 .board :deep(.cell:nth-child(3n):not(:nth-child(9n))) {
   margin-right: var(--box-line);
-  box-shadow: var(--box-line) 0 0 var(--ion-color-dark, #222428);
+  box-shadow: var(--box-line) 0 0 var(--board-box-line);
 }
 
 .board :deep(.cell:nth-child(n + 19):nth-child(-n + 27)),
 .board :deep(.cell:nth-child(n + 46):nth-child(-n + 54)) {
   margin-bottom: var(--box-line);
-  box-shadow: 0 var(--box-line) 0 var(--ion-color-dark, #222428);
+  box-shadow: 0 var(--box-line) 0 var(--board-box-line);
 }
 
 .board
-  :deep(.cell:nth-child(3n):not(:nth-child(9n)):is(:nth-child(n + 19):nth-child(-n + 27), :nth-child(n + 46):nth-child(-n + 54))) {
+  :deep(
+    .cell:nth-child(3n):not(:nth-child(9n)):is(
+        :nth-child(n + 19):nth-child(-n + 27),
+        :nth-child(n + 46):nth-child(-n + 54)
+      )
+  ) {
   box-shadow:
-    var(--box-line) 0 0 var(--ion-color-dark, #222428),
-    0 var(--box-line) 0 var(--ion-color-dark, #222428),
-    var(--box-line) var(--box-line) 0 var(--ion-color-dark, #222428);
+    var(--box-line) 0 0 var(--board-box-line),
+    0 var(--box-line) 0 var(--board-box-line),
+    var(--box-line) var(--box-line) 0 var(--board-box-line);
 }
 </style>

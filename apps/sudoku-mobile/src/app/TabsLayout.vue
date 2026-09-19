@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { IonIcon, IonLabel, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs } from '@ionic/vue'
-import { barChart, create, flash, grid } from 'ionicons/icons'
+import { barChart, create, flash, grid, settings } from 'ionicons/icons'
 </script>
 
 <template>
@@ -22,6 +22,10 @@ import { barChart, create, flash, grid } from 'ionicons/icons'
       <IonTabButton tab="stats" href="/tabs/stats">
         <IonIcon :icon="barChart" aria-hidden="true" />
         <IonLabel>Stats</IonLabel>
+      </IonTabButton>
+      <IonTabButton tab="settings" href="/tabs/settings">
+        <IonIcon :icon="settings" aria-hidden="true" />
+        <IonLabel>Settings</IonLabel>
       </IonTabButton>
     </IonTabBar>
   </IonTabs>
