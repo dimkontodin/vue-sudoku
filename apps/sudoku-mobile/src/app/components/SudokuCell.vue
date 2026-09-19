@@ -57,6 +57,7 @@ const label = computed(() => {
       'is-incorrect': isIncorrect,
       'is-hint-pattern': isHintPattern,
       'is-hint-target': isHintTarget,
+      'is-holding': press.isHolding(index),
     }"
     :aria-label="label"
     :aria-pressed="isSelected"
@@ -108,30 +109,49 @@ const label = computed(() => {
   font-weight: 600;
 }
 
-.cell.has-conflict {
-  background: color-mix(in srgb, var(--ion-color-danger, #eb445a) 18%, var(--ion-background-color, #fff));
-  color: var(--ion-color-danger, #eb445a);
+/* Selection is a ring, not a fill. As a fill it was a 22% primary tint that
+   read almost the same as the .is-peer wash next to it, and — because it came
+   last in this file — it painted straight over .is-incorrect and .has-conflict,
+   hiding the error state on the one cell the player was looking at. */
+.cell.is-selected {
+  box-shadow: inset 0 0 0 2px var(--ion-color-primary, #0054e9);
 }
 
 .cell.is-hint-pattern {
-  background: color-mix(in srgb, #f0b429 32%, var(--ion-background-color, #fff));
+  background: color-mix(in srgb, var(--hint-accent) 28%, var(--ion-background-color, #fff));
 }
 
 .cell.is-hint-target {
-  background: color-mix(in srgb, #f0b429 55%, var(--ion-background-color, #fff));
-  box-shadow: inset 0 0 0 2px #f0b429;
+  background: color-mix(in srgb, var(--hint-accent) 48%, var(--ion-background-color, #fff));
+  box-shadow: inset 0 0 0 2px var(--hint-accent);
+}
+
+/* Error states come after selection so they always win the background. */
+.cell.has-conflict {
+  background: color-mix(
+    in srgb,
+    var(--ion-color-danger, #c5000f) 18%,
+    var(--ion-background-color, #fff)
+  );
+  color: var(--ion-color-danger, #c5000f);
 }
 
 .cell.is-incorrect {
-  background: color-mix(in srgb, var(--ion-color-danger, #eb445a) 22%, var(--ion-background-color, #fff));
-  color: var(--ion-color-danger, #eb445a);
+  background: color-mix(
+    in srgb,
+    var(--ion-color-danger, #c5000f) 22%,
+    var(--ion-background-color, #fff)
+  );
+  color: var(--ion-color-danger, #c5000f);
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
 }
 
-.cell.is-selected {
-  background: color-mix(in srgb, var(--ion-color-primary, #3880ff) 22%, var(--ion-background-color, #fff));
+/* A selected cell that is also wrong keeps both: the red wash and the ring. */
+.cell.is-selected.has-conflict,
+.cell.is-selected.is-incorrect {
+  box-shadow: inset 0 0 0 2px var(--ion-color-danger, #c5000f);
 }
 
 .cell.is-given {
@@ -139,15 +159,33 @@ const label = computed(() => {
   font-weight: 600;
 }
 
+/* A hold is under way. Until this existed, a press felt like a dropped tap for
+   the whole 400ms — the haptic only fires once the action lands. */
+.cell.is-holding {
+  background: color-mix(
+    in srgb,
+    var(--ion-color-primary, #0054e9) 30%,
+    var(--ion-background-color, #fff)
+  );
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--ion-color-primary, #0054e9);
+  outline-offset: -2px;
+}
+
 .cell__notes {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   width: 100%;
   height: 100%;
-  padding: 2px;
-  color: var(--ion-color-medium, #92949c);
-  font-size: clamp(0.4rem, 1.9vw, 0.6rem);
-  font-weight: 500;
+  padding: 1px;
+  color: var(--cell-note-color);
+  /* Was clamp(0.4rem, 1.9vw, 0.6rem), which never reached its own ceiling until
+     a 505px-wide screen and so resolved to ~7px on every phone. Notes are a
+     core mechanic, not decoration. */
+  font-size: clamp(0.5625rem, 2.6vw, 0.8rem);
+  font-weight: 600;
 }
 
 .cell__note {

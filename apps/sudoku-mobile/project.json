@@ -1,5 +1,6 @@
 {
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "@vue-sudoku/sudoku-mobile",
   "targets": {
     "cap-sync": {
       "executor": "nx:run-commands",

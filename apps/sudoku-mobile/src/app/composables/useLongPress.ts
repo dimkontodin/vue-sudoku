@@ -1,3 +1,5 @@
+import { shallowRef } from 'vue'
+
 /**
  * Tap vs. long-press over one set of pointer handlers, for elements rendered in
  * a `v-for` — every handler takes the payload (a digit, a cell index) so a
@@ -16,6 +18,8 @@ export interface LongPressHandlers<T> {
 }
 
 export interface LongPressOptions {
+  /** How long before the element shows that a hold is under way, in ms. */
+  cueDelay?: number
   /** How long the press must be held, in ms. */
   delay?: number
   /** Movement past this many px cancels the press — it was a scroll, not a hold. */
@@ -23,9 +27,21 @@ export interface LongPressOptions {
 }
 
 export function useLongPress<T>(handlers: LongPressHandlers<T>, options: LongPressOptions = {}) {
-  const { delay = 400, moveTolerance = 10 } = options
+  const { delay = 400, moveTolerance = 10, cueDelay = 140 } = options
+
+  /**
+   * The payload currently being held, once the press has lasted long enough to
+   * be worth showing. Without it a hold was indistinguishable from a dropped
+   * tap for the whole 400ms: the haptic only fires on the resulting action.
+   *
+   * Held as `unknown` and read through isHolding() rather than exposed as a
+   * `Ref<T | null>`: a generic ref in the return type cannot be named without
+   * dragging Vue's internal IfAny into every caller's declaration file.
+   */
+  const holding = shallowRef<unknown>(null)
 
   let timer: ReturnType<typeof setTimeout> | null = null
+  let cueTimer: ReturnType<typeof setTimeout> | null = null
   let originX = 0
   let originY = 0
   // Set when a long-press fired, so the trailing `click` is ignored. Cleared on
@@ -35,6 +51,11 @@ export function useLongPress<T>(handlers: LongPressHandlers<T>, options: LongPre
   let swallowClick = false
 
   function cancel(): void {
+    if (cueTimer !== null) {
+      clearTimeout(cueTimer)
+      cueTimer = null
+    }
+    holding.value = null
     if (timer === null) return
     clearTimeout(timer)
     timer = null
@@ -60,10 +81,15 @@ export function useLongPress<T>(handlers: LongPressHandlers<T>, options: LongPre
     }
 
     cancel()
+    cueTimer = setTimeout(() => {
+      cueTimer = null
+      holding.value = payload
+    }, cueDelay)
     timer = setTimeout(() => {
       timer = null
       swallowClick = true
       handlers.longPress(payload)
+      holding.value = null
     }, delay)
   }
 
@@ -96,7 +122,20 @@ export function useLongPress<T>(handlers: LongPressHandlers<T>, options: LongPre
     event.preventDefault()
   }
 
-  return { onPointerdown, onPointermove, onPointerup, onPointercancel, onClick, onContextmenu }
+  /** True while `payload` is the element under an in-progress hold. */
+  function isHolding(payload: T): boolean {
+    return holding.value === payload
+  }
+
+  return {
+    isHolding,
+    onPointerdown,
+    onPointermove,
+    onPointerup,
+    onPointercancel,
+    onClick,
+    onContextmenu,
+  }
 }
 
 export type LongPressBindings<T> = ReturnType<typeof useLongPress<T>>

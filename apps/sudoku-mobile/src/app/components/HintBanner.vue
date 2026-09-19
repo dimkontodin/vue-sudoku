@@ -28,7 +28,11 @@ const NEXT_LABEL: Record<HintStage, string> = {
     </p>
 
     <div class="hint__actions">
-      <IonButton v-if="!stuck" size="small" @click="stage === 'located' ? emit('apply') : emit('next')">
+      <IonButton
+        v-if="!stuck"
+        size="small"
+        @click="stage === 'located' ? emit('apply') : emit('next')"
+      >
         {{ NEXT_LABEL[stage] }}
       </IonButton>
       <IonButton size="small" fill="outline" @click="emit('dismiss')">Dismiss</IonButton>
@@ -46,7 +50,11 @@ const NEXT_LABEL: Record<HintStage, string> = {
   padding: var(--gap-sm) var(--gap-md);
   border: 1px solid var(--ion-color-primary, #3880ff);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--ion-color-primary, #3880ff) 8%, var(--ion-background-color, #fff));
+  background: color-mix(
+    in srgb,
+    var(--ion-color-primary, #3880ff) 8%,
+    var(--ion-background-color, #fff)
+  );
 }
 
 .hint__headline {
@@ -57,8 +65,8 @@ const NEXT_LABEL: Record<HintStage, string> = {
 
 .hint__detail,
 .hint__aside {
-  color: var(--ion-color-medium, #92949c);
-  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
   line-height: 1.4;
 }
 

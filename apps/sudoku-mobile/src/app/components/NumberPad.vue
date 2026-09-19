@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { IonIcon } from '@ionic/vue'
-import { arrowUndo, backspace, bulb, pencil } from 'ionicons/icons'
+import { arrowRedo, arrowUndo, backspace, bulb, pencil } from 'ionicons/icons'
 import { useLongPress } from '../composables/useLongPress'
 
 // Dumb like every other component here: it is told which digit is armed and
@@ -10,6 +10,7 @@ defineProps<{
   remainingCounts: number[]
   noteMode: boolean
   canUndo: boolean
+  canRedo: boolean
   canHint: boolean
   /** The digit currently armed for digit-first entry, or null. */
   activeDigit: number | null
@@ -21,6 +22,7 @@ const emit = defineEmits<{
   erase: []
   toggleNotes: []
   undo: []
+  redo: []
   hint: []
 }>()
 
@@ -44,6 +46,7 @@ const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
           'is-exhausted': remainingCounts[digit - 1] === 0,
           'is-active': activeDigit === digit,
           'is-note': activeDigit === digit && noteMode,
+          'is-holding': press.isHolding(digit),
         }"
         :aria-label="`Enter ${digit}, ${remainingCounts[digit - 1] ?? 0} remaining. Hold to add as a note.`"
         :aria-pressed="activeDigit === digit"
@@ -58,7 +61,12 @@ const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
         <span class="pad__key-count" aria-hidden="true">{{ remainingCounts[digit - 1] ?? 0 }}</span>
       </button>
 
-      <button type="button" class="pad__key pad__key--action" aria-label="Erase" @click="emit('erase')">
+      <button
+        type="button"
+        class="pad__key pad__key--action"
+        aria-label="Erase"
+        @click="emit('erase')"
+      >
         <IonIcon :icon="backspace" aria-hidden="true" />
       </button>
     </div>
@@ -81,9 +89,26 @@ const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
         <IonIcon :icon="pencil" aria-hidden="true" />
         Notes {{ noteMode ? 'on' : 'off' }}
       </button>
-      <button type="button" class="pad__action" :disabled="!canUndo" @click="emit('undo')">
+      <button
+        type="button"
+        class="pad__action pad__action--icon"
+        aria-label="Undo"
+        :disabled="!canUndo"
+        @click="emit('undo')"
+      >
         <IonIcon :icon="arrowUndo" aria-hidden="true" />
-        Undo
+      </button>
+      <!-- Redo sits with Undo rather than five items deep in the overflow
+           sheet: it is the other half of one control, and the web app has
+           always had it on the pad. -->
+      <button
+        type="button"
+        class="pad__action pad__action--icon"
+        aria-label="Redo"
+        :disabled="!canRedo"
+        @click="emit('redo')"
+      >
+        <IonIcon :icon="arrowRedo" aria-hidden="true" />
       </button>
       <button type="button" class="pad__action" :disabled="!canHint" @click="emit('hint')">
         <IonIcon :icon="bulb" aria-hidden="true" />
@@ -119,6 +144,9 @@ const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
   gap: 2px;
   min-height: 52px;
   padding: var(--gap-xs) 0;
+  /* Keyboard focus was invisible app-wide — these are native <button>s, so
+     they get none of Ionic's focus ring. */
+  outline-offset: -2px;
   border: 1px solid var(--ion-color-light-shade, #d7d8da);
   border-radius: var(--radius-md);
   background: var(--ion-color-light, #f4f5f8);
@@ -151,10 +179,21 @@ const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
   opacity: 0.75;
 }
 
-/* Armed as a note — visually distinct so "placing" and "pencilling" never blur. */
+/* A hold is under way — see the same class on .cell. */
+.pad__key.is-holding {
+  border-color: var(--ion-color-primary, #0054e9);
+  background: var(--ion-color-light-shade, #d7d8da);
+  transform: scale(0.96);
+}
+
+/* Armed as a note — visually distinct so "placing" and "pencilling" never blur.
+   Keeps the primary fill (and so the contrast of the label on it) and carries
+   the difference in the dashed edge, rather than dropping to a grey that left
+   white text at ~2.6:1. */
 .pad__key.is-note {
   border-style: dashed;
-  background: var(--ion-color-medium, #92949c);
+  border-width: 2px;
+  background: var(--ion-color-primary-shade, #3171e0);
 }
 
 .pad__key--action {
@@ -167,8 +206,9 @@ const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 }
 
 .pad__key-count {
-  color: var(--ion-color-medium, #92949c);
-  font-size: 0.6rem;
+  /* Was 0.6rem — 9.6px, small enough that the remaining count read as noise. */
+  color: var(--text-muted);
+  font-size: 0.7rem;
   line-height: 1;
 }
 
@@ -183,7 +223,7 @@ const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 44px;
+  min-height: 48px;
   padding: 0 var(--gap-xs);
   border: 1px solid var(--ion-color-light-shade, #d7d8da);
   border-radius: var(--radius-md);
@@ -195,12 +235,36 @@ const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
   user-select: none;
 }
 
+/* Undo/Redo are icon-only, so they do not need an equal share of the row. */
+.pad__action--icon {
+  flex: 0 0 auto;
+  min-width: 56px;
+  font-size: 1.1rem;
+}
+
 .pad__action:disabled {
   opacity: 0.4;
 }
 
 .pad__action:not(:disabled):active {
   background: var(--ion-color-light-shade, #d7d8da);
+}
+
+/* On a short screen the pad and the board are competing for the same pixels,
+   and the board is the thing you have to read. The keys stay above the 44px
+   minimum; they just stop being generous. */
+@media (max-height: 700px) {
+  .pad {
+    gap: var(--gap-xs);
+  }
+
+  .pad__key {
+    min-height: 46px;
+  }
+
+  .pad__action {
+    min-height: 44px;
+  }
 }
 
 /* Notes mode is on — the one piece of state the player must never lose track of. */

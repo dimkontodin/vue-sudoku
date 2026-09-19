@@ -1,0 +1,36 @@
+/* Board and hint colours, defined per palette.
+ *
+ * These used to be borrowed from Ionic's semantic colours, which broke in dark
+ * mode: the 3px box dividers were painted with --ion-color-dark, and "dark"
+ * inverts to #f4f5f8 under the dark palette — near-white rules on a #121212
+ * page. A board line is not a semantic colour, so it gets its own token and is
+ * declared once per palette instead.
+ */
+
+:root {
+  /* The 1px lines between cells and the 3px lines between 3x3 boxes. Both are
+     painted, not bordered — see SudokuBoard.vue. */
+  --board-line: #c0c3c9;
+  --board-box-line: #2b2f36;
+
+  /* Pencil marks. Kept off --ion-color-medium, which lands at ~3.5:1 on white
+     and fails again on the tinted selected/peer cells the notes sit on. */
+  --cell-note-color: #4a4d55;
+
+  /* Hint highlighting. Mixed into cell backgrounds at 32%/55% and used neat as
+     a 2px ring, so it has to clear 3:1 against the page for the ring to be a
+     visible boundary — #f0b429 does not, on white. */
+  --hint-accent: #c77c00;
+
+  /* Secondary copy. --ion-color-medium is ~3.5:1 on the light background; this
+     clears 4.5:1 in both palettes. */
+  --text-muted: #5b5e66;
+}
+
+.ion-palette-dark {
+  --board-line: #3a3d44;
+  --board-box-line: #767c87;
+  --cell-note-color: #a8adb8;
+  --hint-accent: #f0b429;
+  --text-muted: #a3a7b0;
+}
