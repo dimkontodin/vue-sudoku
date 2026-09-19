@@ -131,3 +131,129 @@ test.describe('Enter tab input', () => {
     await expect(page.locator('.board__cell.is-clue')).toHaveCount(17)
   })
 })
+
+test.describe('reading a puzzle from a picture', () => {
+  // Chromium only, and for a harness reason rather than an app one: Firefox and
+  // WebKit drop `clipboardData` when a ClipboardEvent is built by hand, so the
+  // synthetic paste below never carries the image. A real paste works on all
+  // three — there is just no way to fake one outside Chromium.
+  test.skip(
+    ({ browserName }) => browserName !== 'chromium',
+    'synthetic ClipboardEvent cannot carry files outside Chromium',
+  )
+
+  const PUZZLE = '53..7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79'
+
+  /**
+   * Draws a sudoku on a canvas in the page and pastes it in as a PNG, which is
+   * the real path a screenshot takes: clipboard -> paste event -> core's
+   * vision pipeline -> the grid. Rendering it here rather than checking in a
+   * binary keeps the fixture readable and the repo free of test images.
+   */
+  async function pasteRenderedPuzzle(page: Page, puzzle: string) {
+    await page.evaluate(async (text) => {
+      const S = 54
+      const M = 30
+      const side = S * 9 + M * 2
+      const canvas = document.createElement('canvas')
+      canvas.width = side
+      canvas.height = side
+
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('no 2d context')
+
+      ctx.fillStyle = '#fff'
+      ctx.fillRect(0, 0, side, side)
+      ctx.strokeStyle = '#000'
+      for (let i = 0; i <= 9; i += 1) {
+        ctx.lineWidth = i % 3 === 0 ? 3 : 1
+        ctx.beginPath()
+        ctx.moveTo(M + i * S, M)
+        ctx.lineTo(M + i * S, M + 9 * S)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(M, M + i * S)
+        ctx.lineTo(M + 9 * S, M + i * S)
+        ctx.stroke()
+      }
+
+      ctx.fillStyle = '#000'
+      ctx.font = '600 32px Arial'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      for (let i = 0; i < 81; i += 1) {
+        const ch = text[i]
+        if (!ch || ch === '.') continue
+        ctx.fillText(ch, M + (i % 9) * S + S / 2, M + Math.floor(i / 9) * S + S / 2 + 1)
+      }
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+      if (!blob) throw new Error('no blob')
+
+      const transfer = new DataTransfer()
+      transfer.items.add(new File([blob], 'puzzle.png', { type: 'image/png' }))
+      window.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }),
+      )
+    }, puzzle)
+  }
+
+  /** Resolves once the paste has been read into the grid. */
+  async function expectRead(page: Page) {
+    await expect(page.locator('.enter__meta span').first()).not.toHaveText('0 clues')
+  }
+
+  test('a pasted screenshot lands in the grid', async ({ page }) => {
+    await openEnter(page)
+    await pasteRenderedPuzzle(page, PUZZLE)
+    await expectRead(page)
+
+    const read = await page
+      .locator('.cell')
+      .evaluateAll((cells) => cells.map((cell) => cell.textContent?.trim() || '.').join(''))
+
+    // Not an exact match: how a glyph rasterises depends on which fonts the
+    // machine running the tests actually has, so pinning all 81 characters here
+    // would be testing the font stack. Exactness on known pixels is core's job
+    // (see libs/sudoku-core vision.spec.ts); this asserts the wiring holds and
+    // that the result is usable.
+    const wrong = [...read].flatMap((ch, i) => (ch === PUZZLE[i] ? [] : [i]))
+    expect(wrong.length).toBeLessThanOrEqual(3)
+
+    const flagged = await page
+      .locator('.cell.is-hint-pattern')
+      .evaluateAll((cells) => cells.map((cell) => Number((cell as HTMLElement).dataset.index)))
+
+    // The guarantee that actually matters: whatever it got wrong, it flagged.
+    for (const index of wrong) expect(flagged).toContain(index)
+  })
+
+  test('a read puzzle is offered for checking, never straight for play', async ({ page }) => {
+    await openEnter(page)
+    await pasteRenderedPuzzle(page, PUZZLE)
+    await expectRead(page)
+
+    // The grid is filled in and Check is live, but Play it stays shut until the
+    // player has actually validated what came out of the picture.
+    await expect(page.getByRole('button', { name: 'Check puzzle' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Play it' })).toBeDisabled()
+  })
+
+  test('cells it is unsure of are highlighted, and clear once corrected', async ({ page }) => {
+    await openEnter(page)
+    await pasteRenderedPuzzle(page, PUZZLE)
+    await expectRead(page)
+
+    const flagged = page.locator('.cell.is-hint-pattern')
+    const before = await flagged.count()
+    expect(before).toBeGreaterThan(0)
+
+    // Changing a flagged cell resolves it: the flag tracks what was read, so it
+    // drops as soon as the value stops being that.
+    const first = flagged.first()
+    await first.click()
+    await page.getByRole('button', { name: /^Enter 4,/ }).click()
+
+    await expect(flagged).toHaveCount(before - 1)
+  })
+})

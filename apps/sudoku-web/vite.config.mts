@@ -4,7 +4,7 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vueDevTools from 'vite-plugin-vue-devtools';
 
-export default defineConfig(() => ({
+export default defineConfig(({ mode }) => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/apps/sudoku-web',
   server:{
@@ -32,6 +32,7 @@ export default defineConfig(() => ({
     outDir: './dist',
     emptyOutDir: true,
     reportCompressedSize: true,
+    sourcemap: mode !== 'production',
     commonjsOptions: {
       transformMixedEsModules: true,
     },
