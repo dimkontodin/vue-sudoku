@@ -17,6 +17,7 @@ export * from './composables/useGameStorage'
 export * from './composables/useGridEntry'
 export * from './composables/useHints'
 export * from './composables/useHistory'
+export * from './composables/useImageImport'
 export * from './composables/usePuzzleAnalysis'
 export * from './composables/usePuzzleHandoff'
 export * from './composables/useRafCoalesced'
@@ -25,6 +26,8 @@ export * from './composables/useSolverHandoff'
 export * from './composables/useStats'
 export * from './composables/useSudoku'
 export * from './composables/useTimer'
+
+export * from './vision'
 
 export * from './utils/storage'
 

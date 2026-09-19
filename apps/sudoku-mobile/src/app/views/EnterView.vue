@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   IonContent,
@@ -10,12 +10,14 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/vue'
-import { backspace } from 'ionicons/icons'
+import { backspace, camera, image as imageIcon } from 'ionicons/icons'
 import {
   CELLS,
+  imageFrom,
   useBoardKeyboard,
   useGridEntry,
   usePuzzleAnalysis,
+  useImageImport,
   usePuzzleHandoff,
   useSolverHandoff,
 } from '@vue-sudoku/sudoku-core'
@@ -97,11 +99,75 @@ function watchSolver() {
 
 function loadExample() {
   entry.text.value = EXAMPLE
+  image.reset()
 }
 
 function clear() {
   entry.clear()
+  image.reset()
 }
+
+// Reading a puzzle out of a picture of one. The pipeline lives in core and is
+// shared with the web app; the only thing that differs here is where the image
+// comes from — a phone has a camera, so it gets one more way in.
+const image = useImageImport()
+const fileInput = shallowRef<HTMLInputElement | null>(null)
+const cameraInput = shallowRef<HTMLInputElement | null>(null)
+
+/** What OCR read, kept so a cell stops being flagged once it has been corrected. */
+const recognisedText = shallowRef('')
+const flagged = shallowRef<readonly number[]>([])
+
+const lowConfidence = computed<ReadonlySet<number>>(() => {
+  const unresolved = new Set<number>()
+  for (const index of flagged.value) {
+    const current = entry.board.value[index] ?? 0
+    const asRead = recognisedText.value[index] ?? ''
+    if (asRead === (current === 0 ? '.' : String(current))) unresolved.add(index)
+  }
+  return unresolved
+})
+
+async function readImage(blob: Blob | null | undefined) {
+  if (!blob) return
+
+  const recognised = await image.read(blob)
+  if (!recognised) {
+    haptics.warn()
+    return
+  }
+
+  entry.text.value = recognised.text
+  // After the board has taken the new text, so the watch above does not wipe
+  // the flags we are about to set.
+  await nextTick()
+  recognisedText.value = recognised.text
+  flagged.value = recognised.lowConfidence
+  haptics.tick()
+}
+
+function onFilePicked(event: Event) {
+  const input = event.target as HTMLInputElement
+  void readImage(input.files?.[0])
+  // Cleared so picking the same file again still fires a change.
+  input.value = ''
+}
+
+/**
+ * A screenshot pasted from the clipboard, which is how this gets used on a
+ * tablet or under `nx serve`. A text paste still belongs to the textarea, so
+ * anything without an image in it is left alone.
+ */
+function onPaste(event: ClipboardEvent) {
+  const file = imageFrom(event.clipboardData)
+  if (!file) return
+
+  event.preventDefault()
+  void readImage(file)
+}
+
+onMounted(() => window.addEventListener('paste', onPaste))
+onUnmounted(() => window.removeEventListener('paste', onPaste))
 
 const conflicts = computed<ReadonlySet<number>>(() =>
   analysis.validation.value?.verdict === 'conflicting'
@@ -131,6 +197,7 @@ const conflicts = computed<ReadonlySet<number>>(() =>
           :highlight-value="entry.highlightValue.value"
           :conflicts="conflicts"
           :incorrect="NO_CELLS"
+          :hint-pattern="lowConfidence"
           @select="tapCell"
           @long-press="eraseCell"
         />
@@ -181,6 +248,53 @@ const conflicts = computed<ReadonlySet<number>>(() =>
           <button type="button" @click="loadExample">Example</button>
           <button type="button" @click="clear">Clear</button>
         </div>
+
+        <!--
+          capture="environment" opens the back camera directly in mobile Safari,
+          Chrome and inside Capacitor's WebView — no native plugin needed. The
+          plain picker beside it covers a screenshot already in the gallery.
+        -->
+        <div class="enter__sources">
+          <button type="button" class="enter__source" @click="cameraInput?.click()">
+            <IonIcon :icon="camera" aria-hidden="true" />
+            Photo
+          </button>
+          <button type="button" class="enter__source" @click="fileInput?.click()">
+            <IonIcon :icon="imageIcon" aria-hidden="true" />
+            From image
+          </button>
+          <input
+            ref="cameraInput"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            class="enter__file"
+            aria-label="Photograph a puzzle"
+            @change="onFilePicked"
+          />
+          <input
+            ref="fileInput"
+            type="file"
+            accept="image/*"
+            class="enter__file"
+            aria-label="Read a puzzle from an image"
+            @change="onFilePicked"
+          />
+        </div>
+
+        <p v-if="image.status.value === 'reading'" class="enter__scan" role="status">
+          Reading the image…
+        </p>
+        <p v-else-if="image.errorMessage.value" class="enter__scan is-bad" role="status">
+          {{ image.errorMessage.value }}
+        </p>
+        <p v-else-if="lowConfidence.size" class="enter__scan is-warn" role="status">
+          {{ lowConfidence.size }} highlighted
+          {{ lowConfidence.size === 1 ? 'cell is' : 'cells are' }} worth checking before you play.
+        </p>
+        <p v-else-if="image.status.value === 'done'" class="enter__scan is-good" role="status">
+          Read from the image. Check it against the picture before you play.
+        </p>
 
         <!--
           Bound straight to the grid both ways: typing here rewrites the board,
@@ -339,6 +453,55 @@ const conflicts = computed<ReadonlySet<number>>(() =>
 
 .pad__key--action {
   font-size: 1.3rem;
+}
+
+/* Same 44px floor and the same look as the meta buttons beside them. */
+.enter__sources {
+  display: flex;
+  gap: var(--gap-sm);
+  width: 100%;
+}
+
+.enter__source {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border: 1px solid var(--ion-color-light-shade, #d7d8da);
+  border-radius: var(--radius-md);
+  background: var(--ion-color-light, #f4f5f8);
+  color: var(--ion-color-primary, #0054e9);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.enter__source:active {
+  background: var(--ion-color-light-shade, #d7d8da);
+}
+
+/* Driven by the buttons above; a bare file input has no styling worth keeping. */
+.enter__file {
+  display: none;
+}
+
+.enter__scan {
+  width: 100%;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.enter__scan.is-good {
+  color: var(--ion-color-success-shade, #1f7a3d);
+}
+
+.enter__scan.is-warn {
+  color: var(--hint-accent);
+}
+
+.enter__scan.is-bad {
+  color: var(--ion-color-danger, #c5000f);
 }
 
 .enter__meta {

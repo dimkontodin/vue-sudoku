@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { CELLS } from '@vue-sudoku/sudoku-core'
 import { useBoardKeyboard } from '@vue-sudoku/sudoku-core'
 import { useGridEntry } from '@vue-sudoku/sudoku-core'
 import { usePuzzleAnalysis } from '@vue-sudoku/sudoku-core'
 import { usePuzzleHandoff, useSolverHandoff } from '@vue-sudoku/sudoku-core'
+import { imageFrom, useImageImport } from '@vue-sudoku/sudoku-core'
 import SudokuBoard from '@/components/SudokuBoard.vue'
 
 const router = useRouter()
@@ -25,6 +26,83 @@ const NO_CELLS: ReadonlySet<number> = new Set()
 useBoardKeyboard(entry)
 
 const showPaste = shallowRef(false)
+
+// Reading a puzzle out of a picture of one. The pipeline lives in core, so this
+// screen only has to decide where the image comes from and what to do with the
+// 81 characters that come back — which is: put them in the grid the player is
+// already editing, never straight into a game.
+const image = useImageImport()
+const isDragging = shallowRef(false)
+const fileInput = shallowRef<HTMLInputElement | null>(null)
+
+/** What OCR read, kept so a cell stops being flagged once it has been corrected. */
+const recognisedText = shallowRef('')
+const flagged = shallowRef<readonly number[]>([])
+
+const lowConfidence = computed<ReadonlySet<number>>(() => {
+  const unresolved = new Set<number>()
+  for (const index of flagged.value) {
+    const current = entry.board.value[index] ?? 0
+    const asRead = recognisedText.value[index] ?? ''
+    // Still showing exactly what was read, so it still wants a second look.
+    if (asRead === (current === 0 ? '.' : String(current))) unresolved.add(index)
+  }
+  return unresolved
+})
+
+async function readImage(blob: Blob | null | undefined) {
+  if (!blob) return
+
+  const recognised = await image.read(blob)
+  if (!recognised) return
+
+  entry.text.value = recognised.text
+  // After the board has taken the new text, so the watch below does not wipe
+  // the flags we are about to set.
+  await nextTick()
+  recognisedText.value = recognised.text
+  flagged.value = recognised.lowConfidence
+}
+
+/**
+ * A pasted screenshot is the cheapest way in on a desktop, where there is no
+ * camera: Win+Shift+S, then Ctrl+V. Uses the paste event rather than
+ * navigator.clipboard.read() because that needs a permission prompt and is not
+ * supported everywhere — and a text paste still belongs to the textarea, so
+ * anything without an image in it is left alone.
+ */
+function onPaste(event: ClipboardEvent) {
+  const file = imageFrom(event.clipboardData)
+  if (!file) return
+
+  event.preventDefault()
+  void readImage(file)
+}
+
+function onDrop(event: DragEvent) {
+  isDragging.value = false
+  const file = imageFrom(event.dataTransfer)
+  if (!file) return
+
+  event.preventDefault()
+  void readImage(file)
+}
+
+function onDragOver(event: DragEvent) {
+  if (!event.dataTransfer?.types.includes('Files')) return
+  event.preventDefault()
+  isDragging.value = true
+}
+
+function onFilePicked(event: Event) {
+  const input = event.target as HTMLInputElement
+  void readImage(input.files?.[0])
+  // Cleared so picking the same file again still fires a change.
+  input.value = ''
+}
+
+onMounted(() => window.addEventListener('paste', onPaste))
+onUnmounted(() => window.removeEventListener('paste', onPaste))
 
 const parseMessage = computed(() => {
   if (entry.parseError.value === 'characters') return 'Only digits, dots and underscores, please.'
@@ -58,10 +136,12 @@ function watchSolver() {
 
 function loadExample() {
   entry.text.value = EXAMPLE
+  image.reset()
 }
 
 function clear() {
   entry.clear()
+  image.reset()
 }
 
 const conflicts = computed<ReadonlySet<number>>(() =>
@@ -72,10 +152,17 @@ const conflicts = computed<ReadonlySet<number>>(() =>
 </script>
 
 <template>
-  <section class="enter">
+  <section
+    class="enter"
+    :class="{ 'is-dragging': isDragging }"
+    @dragover="onDragOver"
+    @dragleave="isDragging = false"
+    @drop="onDrop"
+  >
     <p class="enter__intro">
       Click a cell and type, or pick a digit and click every square it belongs in. Arrow keys move,
-      0 or Backspace clears. Already have the puzzle as text? Paste it below.
+      0 or Backspace clears. Already have the puzzle as text? Paste it below. Have a picture of one?
+      Paste, drop or choose an image and it will be read into the grid.
     </p>
 
     <SudokuBoard
@@ -86,8 +173,25 @@ const conflicts = computed<ReadonlySet<number>>(() =>
       :highlight-value="entry.highlightValue.value"
       :conflicts="conflicts"
       :incorrect="NO_CELLS"
+      :hint-pattern="lowConfidence"
       @select="entry.onCellTap"
     />
+
+    <p v-if="image.status.value === 'reading'" class="enter__scan" role="status">
+      Reading the image…
+    </p>
+    <p v-else-if="image.errorMessage.value" class="enter__scan is-bad" role="status">
+      {{ image.errorMessage.value }}
+    </p>
+    <p v-else-if="lowConfidence.size" class="enter__scan is-warn" role="status">
+      Read {{ image.result.value?.text.replace(/[^1-9]/g, '').length ?? 0 }} digits.
+      {{ lowConfidence.size }} highlighted {{ lowConfidence.size === 1 ? 'cell is' : 'cells are' }}
+      worth checking before you play.
+    </p>
+    <p v-else-if="image.status.value === 'done'" class="enter__scan is-good" role="status">
+      Read {{ image.result.value?.text.replace(/[^1-9]/g, '').length ?? 0 }} digits. Check them
+      against the picture before you play.
+    </p>
 
     <div class="pad">
       <button
@@ -123,6 +227,17 @@ const conflicts = computed<ReadonlySet<number>>(() =>
       </button>
       <button type="button" class="enter__link" @click="loadExample">Load an example</button>
       <button type="button" class="enter__link" @click="clear">Clear</button>
+      <!-- The always-works route in. Paste and drop cover the quick cases, but
+           neither is discoverable on its own. -->
+      <button type="button" class="enter__link" @click="fileInput?.click()">From image</button>
+      <input
+        ref="fileInput"
+        type="file"
+        accept="image/*"
+        class="enter__file"
+        aria-label="Read a puzzle from an image"
+        @change="onFilePicked"
+      />
     </div>
 
     <!--
@@ -199,6 +314,33 @@ const conflicts = computed<ReadonlySet<number>>(() =>
 </template>
 
 <style scoped lang="scss">
+.enter.is-dragging {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: 8px;
+}
+
+/* Driven by the sibling button; a bare file input has no styling worth keeping
+   and its own label would duplicate the one already there. */
+.enter__file {
+  display: none;
+}
+
+.enter__scan {
+  font-size: 0.85rem;
+
+  &.is-good {
+    color: var(--color-success, var(--color-primary));
+  }
+
+  &.is-warn {
+    color: var(--color-warning, var(--color-text));
+  }
+
+  &.is-bad {
+    color: var(--color-danger);
+  }
+}
+
 .enter {
   display: flex;
   flex-direction: column;
