@@ -68,12 +68,12 @@ const cells = computed(() =>
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .board {
-  /* Fluid: the cells take their size from the board, not the other way round,
-     so the grid always fits the width the parent gives it. The old
-     `width: max-content` over a fixed --cell-size resolved to 380px and
-     overflowed IonContent's padding on every phone narrower than ~410px. */
+  // Fluid: the cells take their size from the board, not the other way
+  // round, so the grid always fits the width the parent gives it. The old
+  // `width: max-content` over a fixed --cell-size resolved to 380px and
+  // overflowed IonContent's padding on every phone narrower than ~410px.
   display: grid;
   grid-template-columns: repeat(9, 1fr);
   grid-template-rows: repeat(9, 1fr);
@@ -82,35 +82,36 @@ const cells = computed(() =>
   gap: var(--grid-line);
   padding: var(--box-line);
   border-radius: var(--radius-sm);
-  /* Own token, not --ion-color-medium: the grid lines have to stay a line in
-     both palettes, and the semantic colours invert. */
+  // Own token, not --ion-color-medium: the grid lines have to stay a line in
+  // both palettes, and the semantic colours invert.
   background: var(--board-line);
-}
 
-/* Box separators without wrapper elements: widen the gap on the last cell of
-   each 3-wide/tall group and paint that space with box-shadow, same trick as
-   the web app's SudokuBoard. Flat selectors (no CSS nesting) to stay plain-CSS. */
-.board :deep(.cell:nth-child(3n):not(:nth-child(9n))) {
-  margin-right: var(--box-line);
-  box-shadow: var(--box-line) 0 0 var(--board-box-line);
-}
+  // Box separators without wrapper elements: widen the gap on the last cell
+  // of each 3-wide/tall group and paint that space with box-shadow, same
+  // trick as the web app's SudokuBoard. :deep() is required because these
+  // target the child component's root element.
+  :deep(.cell) {
+    &:nth-child(3n):not(:nth-child(9n)) {
+      margin-right: var(--box-line);
+      box-shadow: var(--box-line) 0 0 var(--board-box-line);
+    }
 
-.board :deep(.cell:nth-child(n + 19):nth-child(-n + 27)),
-.board :deep(.cell:nth-child(n + 46):nth-child(-n + 54)) {
-  margin-bottom: var(--box-line);
-  box-shadow: 0 var(--box-line) 0 var(--board-box-line);
-}
+    &:nth-child(n + 19):nth-child(-n + 27),
+    &:nth-child(n + 46):nth-child(-n + 54) {
+      margin-bottom: var(--box-line);
+      box-shadow: 0 var(--box-line) 0 var(--board-box-line);
+    }
 
-.board
-  :deep(
-    .cell:nth-child(3n):not(:nth-child(9n)):is(
+    // Corners need both edges drawn, so the two shadows have to be combined.
+    &:nth-child(3n):not(:nth-child(9n)):is(
         :nth-child(n + 19):nth-child(-n + 27),
         :nth-child(n + 46):nth-child(-n + 54)
-      )
-  ) {
-  box-shadow:
-    var(--box-line) 0 0 var(--board-box-line),
-    0 var(--box-line) 0 var(--board-box-line),
-    var(--box-line) var(--box-line) 0 var(--board-box-line);
+      ) {
+      box-shadow:
+        var(--box-line) 0 0 var(--board-box-line),
+        0 var(--box-line) 0 var(--board-box-line),
+        var(--box-line) var(--box-line) 0 var(--board-box-line);
+    }
+  }
 }
 </style>
