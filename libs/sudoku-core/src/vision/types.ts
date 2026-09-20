@@ -56,20 +56,23 @@ export interface RecognisedPuzzle {
   lowConfidence: number[]
   /** The quad the board was found at, in the coordinates of the source image. */
   quad: Quad
+  /**
+   * Quarter turns clockwise applied before reading, when the board turned out
+   * to be lying on its side. 0 for anything photographed the right way up.
+   */
+  turns: number
 }
 
 /**
  * Cells scoring below this are surfaced to the player for checking.
  *
- * Calibrated, not guessed. Over 150 digits rendered in five typefaces (Arial,
- * Georgia, system-ui, a monospace and Verdana), 149 read correctly and the one
- * misread scored 0.128, while 95% of the correct readings scored above 0.199.
- * 0.25 sits in that gap: it catches the error with room to spare and flags
- * about one correct cell in eight.
+ * Set where roughly one correct reading in twenty is flagged along with the
+ * genuinely doubtful ones. That ratio is the trade being made: a false alarm
+ * costs a glance, and a digit quietly read wrong costs a game.
  *
- * It started at 0.45, which flagged a third of a *perfectly* read board — and a
- * highlight that fires on everything is one people learn to scroll past, which
- * is worse than not having it.
+ * It started at 0.45, which flagged a third of a *perfectly* read board — and
+ * a highlight that fires on everything is one people learn to scroll past,
+ * which is worse than not having it.
  */
 export const LOW_CONFIDENCE = 0.25
 

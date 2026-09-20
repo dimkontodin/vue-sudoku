@@ -135,33 +135,41 @@ export function classifyCell(cell: CellBitmap, templates: DigitTemplate[]): Cell
   // empty squares out of the "please check these" list.
   if (isBlank(cell)) return { digit: 0, confidence: 1 }
 
-  let bestDigit = 0
-  let bestScore = 0
-  let runnerUp = 0
   const cellHoles = countHoles(cell.data, cell.size)
+  // Best score per digit, with the topology penalty and without it.
+  const scored = new Float64Array(10)
+  const raw = new Float64Array(10)
 
   for (const template of templates) {
     if (template.size !== cell.size) continue
 
     const templateHoles = template.holes ?? countHoles(template.data, template.size)
-    const agreement = templateHoles === cellHoles ? 1 : HOLE_MISMATCH_PENALTY
-    const score = overlap(cell.data, template.data) * agreement
+    const match = overlap(cell.data, template.data)
+    const score = match * (templateHoles === cellHoles ? 1 : HOLE_MISMATCH_PENALTY)
 
-    if (score > bestScore) {
-      // Another variant of the same digit is not a rival, so it must not count
-      // as the runner-up or every well-covered digit would look uncertain.
-      if (template.digit !== bestDigit) runnerUp = bestScore
-      bestScore = score
-      bestDigit = template.digit
-    } else if (template.digit !== bestDigit && score > runnerUp) {
-      runnerUp = score
-    }
+    if (match > (raw[template.digit] as number)) raw[template.digit] = match
+    if (score > (scored[template.digit] as number)) scored[template.digit] = score
   }
 
+  let bestDigit = 0
+  for (let digit = 1; digit <= 9; digit += 1) {
+    if ((scored[digit] as number) > (scored[bestDigit] as number)) bestDigit = digit
+  }
   if (bestDigit === 0) return { digit: 0, confidence: 0 }
 
-  const margin = Math.min(1, (bestScore - runnerUp) * MARGIN_SCALE)
-  return { digit: bestDigit, confidence: bestScore * margin }
+  // Confidence is measured on the raw shapes, deliberately, while the answer
+  // is chosen with the holes counted. When the two disagree — a 6 whose gap
+  // has closed up at thumbnail resolution reads as an 8 on topology, but the
+  // ink still fits a 6 about as well — the margin collapses and the cell is
+  // put in front of the player, which is the only honest thing to do with a
+  // glyph that no longer carries the evidence.
+  let rival = 0
+  for (let digit = 1; digit <= 9; digit += 1) {
+    if (digit !== bestDigit) rival = Math.max(rival, raw[digit] as number)
+  }
+
+  const margin = Math.min(1, Math.max(0, (raw[bestDigit] as number) - rival) * MARGIN_SCALE)
+  return { digit: bestDigit, confidence: (scored[bestDigit] as number) * margin }
 }
 
 export function classifyCells(cells: CellBitmap[], templates: DigitTemplate[]): CellReading[] {

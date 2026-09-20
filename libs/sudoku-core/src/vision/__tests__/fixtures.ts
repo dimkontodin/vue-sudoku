@@ -1,6 +1,6 @@
-import { sliceCells, warpToSquare } from '../grid'
+import { detectBoard, sliceCells } from '../grid'
 import type { DigitTemplate } from '../classify'
-import type { GrayImage, Quad } from '../types'
+import type { GrayImage } from '../types'
 
 /**
  * Synthetic sudoku images, so the pipeline can be tested without a browser or a
@@ -90,12 +90,29 @@ export function makeBoardImage(text: string, options: BoardImageOptions = {}): G
   return image
 }
 
+/** Bilinear sample, white outside the frame, as a page is white around a board. */
+function sample(image: GrayImage, x: number, y: number): number {
+  const x0 = Math.floor(x)
+  const y0 = Math.floor(y)
+  if (x0 < 0 || y0 < 0 || x0 + 1 >= image.width || y0 + 1 >= image.height) return 255
+
+  const fx = x - x0
+  const fy = y - y0
+  const p00 = image.data[y0 * image.width + x0] ?? 255
+  const p10 = image.data[y0 * image.width + x0 + 1] ?? 255
+  const p01 = image.data[(y0 + 1) * image.width + x0] ?? 255
+  const p11 = image.data[(y0 + 1) * image.width + x0 + 1] ?? 255
+
+  return p00 * (1 - fx) * (1 - fy) + p10 * fx * (1 - fy) + p01 * (1 - fx) * fy + p11 * fx * fy
+}
+
 /**
  * Rotates an image about its centre, leaving white where nothing maps.
  *
- * A plain 2D rotation rather than a homography on purpose: the fixture has to be
- * obviously correct, or a failure says nothing about the code under test. It is
- * enough to make the board non-axis-aligned, which is the thing worth proving.
+ * A plain 2D rotation rather than a homography on purpose: the fixture has to
+ * be obviously correct, or a failure says nothing about the code under test.
+ * It is enough to make the board non-axis-aligned, which is the thing worth
+ * proving.
  */
 export function rotate(image: GrayImage, degrees: number): GrayImage {
   const radians = (degrees * Math.PI) / 180
@@ -109,14 +126,58 @@ export function rotate(image: GrayImage, degrees: number): GrayImage {
     for (let x = 0; x < image.width; x += 1) {
       const dx = x - cx
       const dy = y - cy
-      const sx = Math.round(cx + dx * cos - dy * sin)
-      const sy = Math.round(cy + dx * sin + dy * cos)
-      if (sx < 0 || sy < 0 || sx >= image.width || sy >= image.height) continue
-      data[y * image.width + x] = image.data[sy * image.width + sx] ?? 255
+      data[y * image.width + x] = sample(image, cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
     }
   }
 
   return { width: image.width, height: image.height, data }
+}
+
+/**
+ * Exact quarter turns clockwise — a phone held sideways, not a tilted one.
+ *
+ * Nothing is resampled, so a test that uses this is testing the pipeline's
+ * sense of which way up the board is and nothing else.
+ */
+export function turn(image: GrayImage, quarters = 1): GrayImage {
+  let current = image
+  for (let i = 0; i < ((quarters % 4) + 4) % 4; i += 1) {
+    const { width, height } = current
+    const data = new Uint8ClampedArray(width * height)
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        data[x * height + (height - 1 - y)] = current.data[y * width + x] as number
+      }
+    }
+    current = { width: height, height: width, data }
+  }
+  return current
+}
+
+/**
+ * Tilts an image as if the page were photographed from off to one side.
+ *
+ * `strength` is how much narrower the far edge ends up, as a share of the
+ * near one, which is the only part of a real perspective that matters here:
+ * straight lines stay straight, and the cells on the far side of the board
+ * are smaller than the cells on the near side. Nothing else in the pipeline
+ * can tell the difference between this and a real photograph of a flat page.
+ */
+export function tilt(image: GrayImage, strength = 0.25): GrayImage {
+  const { width, height } = image
+  const data = new Uint8ClampedArray(width * height).fill(255)
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      // Rows keep their place; columns squeeze towards the top of the frame.
+      const squeeze = 1 - strength * (1 - y / (height - 1))
+      const sx = (x - (width - 1) / 2) / squeeze + (width - 1) / 2
+      const sy = (y - (height - 1) / 2) / squeeze + (height - 1) / 2
+      data[y * width + x] = sample(image, sx, sy)
+    }
+  }
+
+  return { width, height, data }
 }
 
 /**
@@ -127,13 +188,8 @@ export function rotate(image: GrayImage, degrees: number): GrayImage {
 export function syntheticTemplates(): DigitTemplate[] {
   const text = '123456789' + '.'.repeat(72)
   const image = makeBoardImage(text)
-  const quad: Quad = [
-    { x: 20, y: 20 },
-    { x: image.width - 20, y: 20 },
-    { x: image.width - 20, y: image.height - 20 },
-    { x: 20, y: image.height - 20 },
-  ]
-  const cells = sliceCells(warpToSquare(image, quad))
+  const board = detectBoard(image)
+  const cells = sliceCells(board.image, { lines: board.lines, polarity: board.polarity })
 
   return cells.slice(0, 9).map((cell, i) => ({ digit: i + 1, size: cell.size, data: cell.data }))
 }

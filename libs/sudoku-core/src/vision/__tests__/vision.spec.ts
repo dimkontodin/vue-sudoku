@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { binarize, downscale, otsuThreshold, toGray } from '../image'
-import { findBoardQuad, sliceCells, warpToSquare } from '../grid'
+import { detectBoard, findBoardQuad, sliceCells, warpToSquare } from '../grid'
 import { classifyCell, overlap } from '../classify'
 import { recogniseGray } from '../recognise'
 import { CELL_BITMAP_SIZE, type GrayImage } from '../types'
-import { SAMPLE_PUZZLE, makeBoardImage, rotate, syntheticTemplates } from './fixtures'
+import { SAMPLE_PUZZLE, makeBoardImage, rotate, tilt, turn, syntheticTemplates } from './fixtures'
 
 function gray(width: number, height: number, value = 255): GrayImage {
   return { width, height, data: new Uint8ClampedArray(width * height).fill(value) }
@@ -107,11 +107,20 @@ describe('board detection', () => {
     expect(Math.abs(top - left)).toBeLessThan(20)
   })
 
-  // There is deliberately no end-to-end accuracy test on a rotated board. The
-  // fixture glyphs are chunky 5x5 blocks, and nearest-neighbour rotation
-  // scrambles their topology far faster than it does real type — a tolerance
-  // pinned here would be measuring the fixture, not the pipeline. Accuracy on
-  // actual fonts needs a canvas, so it is verified in the browser instead.
+  it('finds a grid in a board turned past the point where its corners swap', () => {
+    // Beyond about 40 degrees the extremes of x+y and x-y stop being four
+    // different corners, and at 45 they tie outright. The corner search does
+    // not use them, and this is the case that says so.
+    const image = rotate(makeBoardImage(SAMPLE_PUZZLE, { board: 360, margin: 160 }), 44)
+    const board = detectBoard(image)
+
+    expect(board.score).toBeGreaterThan(0.5)
+    const sides = board.quad.map((corner, i) => {
+      const next = board.quad[(i + 1) % 4] as { x: number; y: number }
+      return Math.hypot(next.x - corner.x, next.y - corner.y)
+    })
+    expect(Math.max(...sides) - Math.min(...sides)).toBeLessThan(20)
+  })
 })
 
 describe('cell slicing', () => {
@@ -197,6 +206,51 @@ describe('classification', () => {
     ]
 
     expect(classifyCell(cell, ambiguous).confidence).toBe(0)
+  })
+})
+
+describe('boards that are not square to the camera', () => {
+  const templates = syntheticTemplates()
+  const read = (image: GrayImage) => recogniseGray(image, { templates })
+  const base = makeBoardImage(SAMPLE_PUZZLE, { board: 360, margin: 160 })
+
+  // The warp is a homography, so rotation and perspective are the same problem
+  // to it — as long as the corners it is given are the board's corners. These
+  // are the cases that prove the corners survive.
+  for (const degrees of [8, 25, 44]) {
+    it(`reads a board rotated by ${degrees} degrees`, () => {
+      expect(read(rotate(base, degrees)).text).toBe(SAMPLE_PUZZLE)
+    })
+  }
+
+  for (const strength of [0.2, 0.4]) {
+    it(`reads a board photographed from an angle, far edge ${strength * 100}% shorter`, () => {
+      expect(read(tilt(base, strength)).text).toBe(SAMPLE_PUZZLE)
+    })
+  }
+
+  it('reads a board that is both tilted and rotated', () => {
+    expect(read(rotate(tilt(base, 0.25), 12)).text).toBe(SAMPLE_PUZZLE)
+  })
+
+  for (const quarters of [1, 2, 3]) {
+    it(`reads a board photographed ${quarters * 90} degrees round, and says so`, () => {
+      // A quarter turn is not something the warp can undo, because a square
+      // board gives it nothing to go on. The digits do.
+      const result = read(turn(base, quarters))
+
+      expect(result.text).toBe(SAMPLE_PUZZLE)
+      expect(result.turns).toBe(4 - quarters)
+    })
+  }
+
+  it('leaves the board alone when the caller says it is upright', () => {
+    const result = read({ ...turn(base, 1) })
+    const fixed = recogniseGray(turn(base, 1), { templates, findOrientation: false })
+
+    expect(result.turns).toBe(3)
+    expect(fixed.turns).toBe(0)
+    expect(fixed.text).not.toBe(SAMPLE_PUZZLE)
   })
 })
 

@@ -29,7 +29,10 @@ function fit(width: number, height: number): { width: number; height: number } {
  * main thread is a visible freeze.
  */
 export async function decodeBlob(blob: Blob): Promise<DecodedImage> {
-  const bitmap = await createImageBitmap(blob)
+  // `from-image` applies the EXIF rotation the camera recorded. Without it a
+  // photograph taken with the phone on its side decodes lying down, and the
+  // pipeline has to work out which way up the board is from the digits alone.
+  const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' })
   try {
     const { width, height } = fit(bitmap.width, bitmap.height)
 
