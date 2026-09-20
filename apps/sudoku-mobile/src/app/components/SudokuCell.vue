@@ -78,12 +78,12 @@ const label = computed(() => {
   </button>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .cell {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Sized by the board's 9x9 grid, so it scales with the screen. */
+  // Sized by the board's 9x9 grid, so it scales with the screen.
   width: 100%;
   height: 100%;
   padding: 0;
@@ -93,85 +93,94 @@ const label = computed(() => {
   font-size: clamp(1rem, 5.5vw, 1.6rem);
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  /* Long-press is ours: no double-tap zoom delay, no text selection, and no
-     platform callout menu stealing the gesture. */
+  // Long-press is ours: no double-tap zoom delay, no text selection, and no
+  // platform callout menu stealing the gesture.
   touch-action: manipulation;
   -webkit-touch-callout: none;
   user-select: none;
-}
 
-.cell.is-peer {
-  background: var(--ion-color-light, #f4f5f8);
-}
+  &.is-peer {
+    background: var(--ion-color-light, #f4f5f8);
+  }
 
-.cell.is-same-value {
-  background: var(--ion-color-light-shade, #e0e0e0);
-  font-weight: 600;
-}
+  &.is-same-value {
+    background: var(--ion-color-light-shade, #e0e0e0);
+    font-weight: 600;
+  }
 
-/* Selection is a ring, not a fill. As a fill it was a 22% primary tint that
-   read almost the same as the .is-peer wash next to it, and — because it came
-   last in this file — it painted straight over .is-incorrect and .has-conflict,
-   hiding the error state on the one cell the player was looking at. */
-.cell.is-selected {
-  box-shadow: inset 0 0 0 2px var(--ion-color-primary, #0054e9);
-}
+  // Selection is a ring, not a fill. As a fill it was a 22% primary tint that
+  // read almost the same as the .is-peer wash next to it, and — because it
+  // came last in this file — it painted straight over .is-incorrect and
+  // .has-conflict, hiding the error state on the one cell the player was
+  // looking at.
+  // It's drawn with outline rather than box-shadow because the board's
+  // box-line separators (SudokuBoard.vue) also paint themselves with
+  // box-shadow on these same cells — box-shadow is a single property, so
+  // whichever rule won by specificity was erasing the other's value
+  // entirely, hiding the ring on any cell that sat on a 3x3 box edge.
+  // outline is a separate property, so it can't collide with that.
+  &.is-selected {
+    outline: 2px solid var(--ion-color-primary, #0054e9);
+    outline-offset: -2px;
+  }
 
-.cell.is-hint-pattern {
-  background: color-mix(in srgb, var(--hint-accent) 28%, var(--ion-background-color, #fff));
-}
+  &.is-hint-pattern {
+    background: color-mix(in srgb, var(--hint-accent) 28%, var(--ion-background-color, #fff));
+  }
 
-.cell.is-hint-target {
-  background: color-mix(in srgb, var(--hint-accent) 48%, var(--ion-background-color, #fff));
-  box-shadow: inset 0 0 0 2px var(--hint-accent);
-}
+  &.is-hint-target {
+    background: color-mix(in srgb, var(--hint-accent) 48%, var(--ion-background-color, #fff));
+    outline: 2px solid var(--hint-accent);
+    outline-offset: -2px;
+  }
 
-/* Error states come after selection so they always win the background. */
-.cell.has-conflict {
-  background: color-mix(
-    in srgb,
-    var(--ion-color-danger, #c5000f) 18%,
-    var(--ion-background-color, #fff)
-  );
-  color: var(--ion-color-danger, #c5000f);
-}
+  // Error states come after selection so they always win the background.
+  &.has-conflict {
+    background: color-mix(
+      in srgb,
+      var(--ion-color-danger, #c5000f) 18%,
+      var(--ion-background-color, #fff)
+    );
+    color: var(--ion-color-danger, #c5000f);
+  }
 
-.cell.is-incorrect {
-  background: color-mix(
-    in srgb,
-    var(--ion-color-danger, #c5000f) 22%,
-    var(--ion-background-color, #fff)
-  );
-  color: var(--ion-color-danger, #c5000f);
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
-}
+  &.is-incorrect {
+    background: color-mix(
+      in srgb,
+      var(--ion-color-danger, #c5000f) 22%,
+      var(--ion-background-color, #fff)
+    );
+    color: var(--ion-color-danger, #c5000f);
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
 
-/* A selected cell that is also wrong keeps both: the red wash and the ring. */
-.cell.is-selected.has-conflict,
-.cell.is-selected.is-incorrect {
-  box-shadow: inset 0 0 0 2px var(--ion-color-danger, #c5000f);
-}
+  // A selected cell that is also wrong keeps both: the red wash and the ring.
+  &.is-selected.has-conflict,
+  &.is-selected.is-incorrect {
+    outline-color: var(--ion-color-danger, #c5000f);
+  }
 
-.cell.is-given {
-  color: var(--ion-text-color, #000);
-  font-weight: 600;
-}
+  &.is-given {
+    color: var(--ion-text-color, #000);
+    font-weight: 600;
+  }
 
-/* A hold is under way. Until this existed, a press felt like a dropped tap for
-   the whole 400ms — the haptic only fires once the action lands. */
-.cell.is-holding {
-  background: color-mix(
-    in srgb,
-    var(--ion-color-primary, #0054e9) 30%,
-    var(--ion-background-color, #fff)
-  );
-}
+  // A hold is under way. Until this existed, a press felt like a dropped tap
+  // for the whole 400ms — the haptic only fires once the action lands.
+  &.is-holding {
+    background: color-mix(
+      in srgb,
+      var(--ion-color-primary, #0054e9) 30%,
+      var(--ion-background-color, #fff)
+    );
+  }
 
-.cell:focus-visible {
-  outline: 2px solid var(--ion-color-primary, #0054e9);
-  outline-offset: -2px;
+  &:focus-visible {
+    outline: 2px solid var(--ion-color-primary, #0054e9);
+    outline-offset: -2px;
+  }
 }
 
 .cell__notes {
@@ -181,9 +190,9 @@ const label = computed(() => {
   height: 100%;
   padding: 1px;
   color: var(--cell-note-color);
-  /* Was clamp(0.4rem, 1.9vw, 0.6rem), which never reached its own ceiling until
-     a 505px-wide screen and so resolved to ~7px on every phone. Notes are a
-     core mechanic, not decoration. */
+  // Was clamp(0.4rem, 1.9vw, 0.6rem), which never reached its own ceiling
+  // until a 505px-wide screen and so resolved to ~7px on every phone. Notes
+  // are a core mechanic, not decoration.
   font-size: clamp(0.5625rem, 2.6vw, 0.8rem);
   font-weight: 600;
 }
