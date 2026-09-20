@@ -11,8 +11,9 @@
  * the enclosed hole in a 6 leaks out through the gaps, and the classifier's
  * strongest signal for separating 6, 8 and 9 disappears.
  *
- * So this walks the *destination* instead and samples backwards, which cannot
- * leave gaps at any scale.
+ * So this walks the *destination* instead and samples backwards, over the
+ * whole patch of the glyph each destination pixel covers, which cannot leave
+ * gaps at any scale.
  */
 
 export interface InkBox {
@@ -36,30 +37,45 @@ export function normaliseGlyph(
   const offsetX = (bitmapSize - box.width * scale) / 2
   const offsetY = (bitmapSize - box.height * scale) / 2
 
-  // When shrinking, one destination pixel covers several source pixels; take
-  // ink if any of them has it, so thin strokes survive instead of being
-  // sampled away between them.
-  const footprint = Math.max(0, Math.ceil(0.5 / scale - 0.5))
+  /**
+   * Share of a destination pixel's source area that has to be inked.
+   *
+   * When shrinking, one destination pixel covers a patch of the glyph, and
+   * what to do with a patch that is partly inked decides whether a 6 stays a
+   * 6. Taking ink if *any* of it is inked keeps the thinnest stroke alive —
+   * and closes the gap at the top of a 6 into the second hole of an 8, which
+   * is exactly the distinction the classifier leans on hardest. A proportion
+   * keeps both: a stroke passing through a patch covers a third of it or
+   * more, while the air beside the stroke does not.
+   */
+  const coverage = 0.3
 
   for (let by = 0; by < bitmapSize; by += 1) {
-    const gy = (by + 0.5 - offsetY) / scale
-    if (gy < 0 || gy >= box.height) continue
+    const gy0 = (by - offsetY) / scale
+    const gy1 = (by + 1 - offsetY) / scale
+    if (gy1 <= 0 || gy0 >= box.height) continue
+
+    const sy0 = Math.max(0, Math.floor(gy0))
+    const sy1 = Math.max(sy0 + 1, Math.min(box.height, Math.ceil(gy1)))
 
     for (let bx = 0; bx < bitmapSize; bx += 1) {
-      const gx = (bx + 0.5 - offsetX) / scale
-      if (gx < 0 || gx >= box.width) continue
+      const gx0 = (bx - offsetX) / scale
+      const gx1 = (bx + 1 - offsetX) / scale
+      if (gx1 <= 0 || gx0 >= box.width) continue
 
-      const sx = box.minX + Math.floor(gx)
-      const sy = box.minY + Math.floor(gy)
+      const sx0 = Math.max(0, Math.floor(gx0))
+      const sx1 = Math.max(sx0 + 1, Math.min(box.width, Math.ceil(gx1)))
 
-      let inked = false
-      for (let dy = -footprint; dy <= footprint && !inked; dy += 1) {
-        for (let dx = -footprint; dx <= footprint && !inked; dx += 1) {
-          if (isInk(sx + dx, sy + dy)) inked = true
+      let inked = 0
+      let total = 0
+      for (let sy = sy0; sy < sy1; sy += 1) {
+        for (let sx = sx0; sx < sx1; sx += 1) {
+          total += 1
+          if (isInk(box.minX + sx, box.minY + sy)) inked += 1
         }
       }
 
-      if (inked) data[by * bitmapSize + bx] = 1
+      if (total > 0 && inked / total >= coverage) data[by * bitmapSize + bx] = 1
     }
   }
 
