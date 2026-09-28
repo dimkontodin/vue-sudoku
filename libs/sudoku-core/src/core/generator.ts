@@ -194,23 +194,26 @@ function restoreClues(puzzle: Board, solution: Board, count: number): Board {
 const RESTORED_PER_REDIG = 3
 const REDIGS_PER_GRID = 6
 
+interface SearchResult {
+  /** A puzzle grading exactly at the target, or null if none was found in time. */
+  exact: Puzzle | null
+  /** The closest easier puzzle seen, as a fallback. */
+  best: Puzzle | null
+}
+
 /**
- * Generates a unique-solution puzzle that grades as `difficulty`, judged by
- * the techniques it needs (see gradeFrom() in logicalSolver.ts), not by how
- * many clues it has.
- *
  * Fill a random grid, dig under the level's technique ceiling, and grade the
  * result. A dig that lands one level short is re-dug locally (hill-climbing),
- * and anything else starts over with a new grid. A dig costs a few to a few
- * dozen milliseconds. Which advanced technique a hard or expert puzzle ends up
- * needing is left to chance, which gives variety without the cost of forcing
- * a particular one.
+ * and anything else starts over with a new grid. Stops at the first exact hit,
+ * or once `deadline` passes and `keepGoing` says there is enough to return.
  */
-export function generate(difficulty: Difficulty, options: GenerateOptions = {}): Puzzle {
-  const { timeBudgetMs = DEFAULT_TIME_BUDGET_MS } = options
+function search(
+  difficulty: Difficulty,
+  deadline: number,
+  keepGoing: (best: Puzzle | null) => boolean,
+): SearchResult {
   const spec = LEVELS[difficulty]
   const target = DIFFICULTY_RANK[difficulty]
-  const deadline = performance.now() + timeBudgetMs
 
   // How close a graded puzzle is to what was asked for. Right grade but too
   // little technique work sits just below the target, so it is both the best
@@ -235,7 +238,7 @@ export function generate(difficulty: Difficulty, options: GenerateOptions = {}):
       ).length
       const level = rank === target && techniqueSteps < spec.minTechniqueSteps ? target - 0.5 : rank
 
-      if (level === target) return { puzzle, solution }
+      if (level === target) return { exact: { puzzle, solution }, best: null }
       if (level < target && (!best || level > best.level)) {
         best = { puzzle: { puzzle, solution }, level }
       }
@@ -245,7 +248,39 @@ export function generate(difficulty: Difficulty, options: GenerateOptions = {}):
 
       puzzle = dig(restoreClues(puzzle, solution, RESTORED_PER_REDIG), spec)
     }
-  } while (performance.now() < deadline || !best)
+  } while (performance.now() < deadline || keepGoing(best?.puzzle ?? null))
 
-  return best.puzzle
+  return { exact: null, best: best?.puzzle ?? null }
+}
+
+/**
+ * Generates a unique-solution puzzle that grades as `difficulty`, judged by
+ * the techniques it needs (see gradeFrom() in logicalSolver.ts), not by how
+ * many clues it has.
+ *
+ * A dig costs a few to a few dozen milliseconds, and some levels need several.
+ * When the budget runs out, the closest easier puzzle found is returned: never
+ * harder than asked and always finishable by the hint engine. Which advanced
+ * technique a hard or expert puzzle ends up needing is left to chance, which
+ * gives variety without the cost of forcing a particular one.
+ */
+export function generate(difficulty: Difficulty, options: GenerateOptions = {}): Puzzle {
+  const { timeBudgetMs = DEFAULT_TIME_BUDGET_MS } = options
+  const deadline = performance.now() + timeBudgetMs
+  const result = search(difficulty, deadline, (best) => !best)
+  return (result.exact ?? result.best)!
+}
+
+/**
+ * Like generate(), but only succeeds with a puzzle that grades exactly as
+ * `difficulty`, and otherwise returns null once `timeBudgetMs` is spent. This
+ * lets background prefetching work in short slices, yielding between them,
+ * without ever accepting a fallback it has plenty of time to improve on.
+ *
+ * A single dig is not interruptible, so a slice can overrun its budget by one
+ * dig: tens of milliseconds, more on a slow device.
+ */
+export function tryGenerate(difficulty: Difficulty, timeBudgetMs: number): Puzzle | null {
+  const deadline = performance.now() + timeBudgetMs
+  return search(difficulty, deadline, () => false).exact
 }

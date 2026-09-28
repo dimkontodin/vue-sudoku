@@ -31,6 +31,9 @@ export interface SolveProgress {
 
 export type WorkerRequest =
   | { type: 'generate'; requestId: number; difficulty: Difficulty }
+  // Fire-and-forget: warm the worker's puzzle cache so the next generate for
+  // this difficulty is instant. Never answered, except with 'error'.
+  | { type: 'prefetch'; requestId: number; difficulty: Difficulty }
   | { type: 'solve'; requestId: number; board: Uint8Array; speed: SolveSpeed }
   | { type: 'cancel'; requestId: number }
 
