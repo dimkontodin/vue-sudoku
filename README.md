@@ -13,7 +13,8 @@ into it.
 apps/
   sudoku-web/          the original Vue web app
     src/
-      workers/         puzzle generation off the main thread (app-specific glue)
+      workers/         puzzle generation off the main thread, with the next puzzle
+                       per difficulty prefetched in the background (app-specific glue)
       components/      dumb presentational SFCs — props down, events up
       views/           GameView is the only "smart" component; it wires everything together
       assets/          _variables.scss (auto-injected) + main.scss (reset & theme tokens)
@@ -25,6 +26,12 @@ libs/
                          composables (useSudoku, useHistory, useTimer, …) + the worker protocol,
                          shared by both apps
 ```
+
+Difficulty is judged by the solving techniques a puzzle needs, not by how many clues it has.
+The generator digs clues under each level's technique ceiling and keeps only puzzles that grade
+at the requested level. See [docs/solving-techniques.md](docs/solving-techniques.md#grading) for
+the grading model and generator, and [docs/hard-puzzles.md](docs/hard-puzzles.md) for the
+brute-force side of "hard".
 
 SCSS variables from `apps/sudoku-web/src/assets/_variables.scss` are injected into every
 stylesheet and `<style lang="scss">` block automatically (see `apps/sudoku-web/vite.config.mts`)
