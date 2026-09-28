@@ -1,4 +1,4 @@
-import { generate, runSolve } from '@vue-sudoku/sudoku-core'
+import { createPuzzleCache, runSolve } from '@vue-sudoku/sudoku-core'
 import type { WorkerRequest, WorkerResponse } from '@vue-sudoku/sudoku-core'
 
 // The project compiles against the DOM lib, where `self` is a Window. Pulling
@@ -16,6 +16,10 @@ const ctx = self as unknown as WorkerScope
 // between batches, which is the only reason it pauses at all in instant mode.
 const cancelled = new Set<number>()
 
+// One puzzle per difficulty, rebuilt in the background after each is handed
+// out, so "New game" rarely has to wait on generation. See createPuzzleCache().
+const puzzles = createPuzzleCache()
+
 function post(message: WorkerResponse): void {
   ctx.postMessage(message)
 }
@@ -26,8 +30,12 @@ async function handle(request: WorkerRequest): Promise<void> {
       cancelled.add(request.requestId)
       return
 
+    case 'prefetch':
+      puzzles.prefetch(request.difficulty)
+      return
+
     case 'generate': {
-      const { puzzle, solution } = generate(request.difficulty)
+      const { puzzle, solution } = puzzles.take(request.difficulty)
       post({
         type: 'generated',
         requestId: request.requestId,

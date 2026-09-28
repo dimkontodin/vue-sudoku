@@ -5,7 +5,7 @@ import { generate } from '../generator'
 import { solve } from '../solver'
 import { formatBoard } from '../parse'
 import { isComplete } from '../validate'
-import { TECHNIQUE_META, findNextStep, solveLogically } from '../logicalSolver'
+import { PRESSURE_MEDIUM, TECHNIQUE_META, findNextStep, solveLogically } from '../logicalSolver'
 import { HARD_PUZZLES, parseGrid } from './fixtures'
 import type { Difficulty } from '../types'
 
@@ -17,7 +17,7 @@ describe('solveLogically', () => {
 
     expect(result.solved).toBe(true)
     expect([...result.used].sort()).toEqual(['hiddenSingle', 'nakedSingle'])
-    expect(result.difficulty).toBe('easy')
+    expect(result.score).toBe(0)
   })
 
   it('agrees with the backtracking solver when it succeeds', () => {
@@ -34,21 +34,17 @@ describe('solveLogically', () => {
     expect(disagreements).toEqual([])
   })
 
-  it('solves every generated puzzle it claims to solve, correctly', () => {
-    let solvedCount = 0
-
-    for (let i = 0; i < 20; i++) {
+  it('solves every generated puzzle, correctly', () => {
+    // The generator only emits puzzles the logical solver can finish, so
+    // every one must solve, and to the generator's own solution.
+    for (let i = 0; i < 8; i++) {
       const { puzzle, solution } = generate('medium')
       const result = solveLogically(puzzle)
-      if (!result.solved) continue
 
-      solvedCount++
+      expect(result.solved).toBe(true)
       expect(isComplete(result.board)).toBe(true)
       expect(Array.from(result.board)).toEqual(Array.from(solution))
     }
-
-    // Medium puzzles should mostly fall to the implemented technique set.
-    expect(solvedCount).toBeGreaterThan(10)
   })
 
   it('never places a digit that contradicts the real solution', () => {
@@ -95,21 +91,43 @@ describe('solveLogically', () => {
   })
 
   describe('grading', () => {
-    it('rates a singles-only puzzle as easy', () => {
-      expect(solveLogically(parseGrid(HARD_PUZZLES.antiBacktrack)).difficulty).toBe('easy')
-    })
-
-    it('scores zero when only singles were needed, however many', () => {
-      // 64 singles for the anti-backtracking grid, 41 for a generated easy one.
-      // Length is not difficulty: neither ever leaves the player stuck.
+    it('scores zero technique work when only singles were needed, however many', () => {
+      // 64 singles for the anti-backtracking grid, about 45 for a generated easy one.
+      // Length alone is not difficulty.
       const long = solveLogically(parseGrid(HARD_PUZZLES.antiBacktrack))
       const short = solveLogically(generate('easy').puzzle)
 
       expect(long.steps.length).toBeGreaterThan(short.steps.length)
       expect(long.score).toBe(0)
       expect(short.score).toBe(0)
-      expect(long.difficulty).toBe('easy')
-      expect(short.difficulty).toBe('easy')
+    })
+
+    it('lets singles pressure, not length, lift a sparse singles-only grid to medium', () => {
+      // The 17-clue grid needs nothing but singles, but it repeatedly offers
+      // only one or two of them, which is the "sparse start is harder" effect.
+      // A generated easy grid always has several on offer.
+      const sparse = solveLogically(parseGrid(HARD_PUZZLES.antiBacktrack))
+      const generous = solveLogically(generate('easy').puzzle)
+
+      expect(sparse.pressure).toBeGreaterThan(generous.pressure)
+      expect(sparse.difficulty).toBe('medium')
+      expect(generous.difficulty).toBe('easy')
+    })
+
+    it('never rates a singles-only puzzle above medium, however sparse', () => {
+      // Its pressure is over twice the medium threshold. The player is never
+      // truly stuck, so it still does not reach hard.
+      const result = solveLogically(parseGrid(HARD_PUZZLES.antiBacktrack))
+
+      expect(result.pressure).toBeGreaterThan(2 * PRESSURE_MEDIUM)
+      expect(result.difficulty).toBe('medium')
+    })
+
+    it('rates a puzzle beyond the implemented techniques as expert, not by its easy part', () => {
+      const result = solveLogically(parseGrid(HARD_PUZZLES.platinumBlonde))
+
+      expect(result.solved).toBe(false)
+      expect(result.difficulty).toBe('expert')
     })
 
     it('scores above zero exactly when a non-single technique was needed', () => {
@@ -128,8 +146,8 @@ describe('solveLogically', () => {
 
     it('never grades below the tier of the hardest technique used', () => {
       const rank = { easy: 0, medium: 1, hard: 2, expert: 3 }
-      // Tier 3 floors at 'hard' — see gradeFrom().
-      const floorFor = [0, 1, 2, 2] as const
+      // Tier N floors at the Nth level. See gradeFrom().
+      const floorFor = [0, 1, 2, 3] as const
       const violations: string[] = []
 
       for (let i = 0; i < 40; i++) {

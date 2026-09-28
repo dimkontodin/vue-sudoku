@@ -239,8 +239,9 @@ templating. Brute-force backtracking — our existing `solve()` — is classifie
 separately as computer-oriented.
 
 For grading, **never fall back to guessing to produce a grade.** If the logical
-solver stalls, report "beyond technique set" and regenerate. We control
-generation, so we never have to grade a puzzle we cannot solve logically.
+solver stalls, the puzzle is beyond the technique set: it grades as expert (see
+[Grading](#grading)), and the generator throws it away and tries again. We
+control generation, so we never hand the player a puzzle the hints cannot finish.
 
 ---
 
@@ -308,6 +309,88 @@ puzzle being mislabelled hard.
 
 Rough SE anchors for our four labels: Easy 1.0–1.5, Medium 1.5–2.5,
 Hard 2.6–4.4, Expert 4.5+.
+
+### What `solveLogically()` implements
+
+Each graded solve produces three numbers:
+
+- **Hardest tier used.** Sets a floor: tier 1 → at least medium, tier 2 → at
+  least hard, tier 3 → expert.
+- **Score** — technique work beyond singles. Each step adds its technique's
+  score (`TECHNIQUE_META`, roughly SE × 10). Repeats of a technique already used
+  count half, so ten pointing pairs do not outweigh one Y-Wing. Singles score 0.
+- **Pressure** — how hard the forced moves were to *find*. Before each single,
+  count the distinct singles on offer, `k`, and add 1 when `k = 1`, else `1/k²`.
+  A generous grid always offers several and stays near 2. A sparse one keeps
+  offering only one, and the 17-clue anti-backtracking grid reaches 8.6. This
+  is the only way clue count affects the grade: indirectly, through how
+  sparse the grid is.
+
+Then:
+
+| Case | Grade |
+| --- | --- |
+| Solver stalls | expert (beyond the technique set) |
+| Singles only | easy, or medium when pressure ≥ 4. Never higher: the player is never truly stuck |
+| Otherwise | `work = score + 5 × pressure`: < 100 medium, < 250 hard, else expert, raised to the tier floor |
+
+The thresholds were calibrated on the generator's own output with the report
+in `generator.report.spec.ts`, not guessed.
+
+---
+
+## Generation
+
+`generate(difficulty)` builds puzzles by the techniques they need, not by clue
+count:
+
+1. Fill a random grid, then **dig** clues in random order. Keep a removal
+   only if the puzzle is still unique and solvable **within the level's
+   technique ceiling** (easy: singles, medium: tier ≤ 1, hard: tier ≤ 2,
+   expert: everything). That makes a puzzle never harder than asked. Below
+   tier 3, a completed logical solve proves uniqueness on its own, so no
+   backtracking count is needed. A bitmask singles pass answers most checks
+   before the full solver runs.
+2. Stop at the level's clue floor (`DIFFICULTY_CLUES`: 28 / 24 / 22 / 17) or
+   when no clue can go.
+3. **Grade** the result. Accept it if it grades at the level and meets the
+   level's minimum technique work (medium: at least 2 steps beyond singles, so
+   it is never a single lucky pointing pair).
+4. A result one level short is re-dug locally: restore 3 clues and dig again
+   in a new order, a few times, before starting over with a new grid.
+5. If the time budget (1.5 s) runs out, return the closest **easier** puzzle
+   found: never a harder one, and never one the hints cannot finish.
+
+Which advanced technique a hard or expert puzzle needs is left to chance. That
+gives variety without the cost of forcing a particular one.
+
+Measured on 100 puzzles per level (dev machine):
+
+| Level | Clues | Technique steps | Hardest technique | Mean / p95 time |
+| --- | --- | --- | --- | --- |
+| Easy | 28 | 0 (singles only, pressure ≈ 2.4) | single | 2 ms / 5 ms |
+| Medium | 24–27 | 2–4 | pointing, pairs | 290 ms / 1 s |
+| Hard | 22–27 | 2–12 | tier 1 (pairs, pointing, box/line) | 150 ms / 490 ms |
+| Expert | 23–28 | 1–56, median ≈ 8 | tier 3 in 90% (colouring, Y/W/XYZ-Wing) | 50 ms / 160 ms |
+
+Randomly dug grids almost never *require* a fish (X-Wing, Swordfish), so hard
+is "long tier-1 work on a sparse grid" in practice. A hard level built around
+fish would need a curated puzzle bank.
+
+Slower devices get less done in the same budget, so they fall back to an
+easier puzzle more often (hard lands on target ~84% of the time at 5× slower).
+That is why the apps' workers keep one puzzle per level ready in the
+background (`createPuzzleCache`). The player spends minutes per game, so the
+next puzzle is built in 50 ms slices while they play, with a 20 s budget and
+exact grades only (`tryGenerate`). "New game" then just hands it over.
+
+To re-measure after changing any of this:
+
+```sh
+cd libs/sudoku-core
+SUDOKU_REPORT=100 npx vitest run generator.report                    # hit rate, timing, techniques
+SUDOKU_REPORT=100 SUDOKU_BUDGET=300 npx vitest run generator.report  # simulate a ~5x slower device
+```
 
 ---
 

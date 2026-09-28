@@ -29,31 +29,39 @@ costs 69 million.**
 
 ## Measured against our solver
 
-`ourMRV` is `findMrvCell` from [solver.ts](../src/core/solver.ts) exactly as
-shipped, including its early break on a single-candidate cell. `in-order` is a
-naive row-major picker. Nodes = placements attempted.
+`our MRV` is the cell picker in [solver.ts](../libs/sudoku-core/src/core/solver.ts):
+fewest candidates first, with an early break on a single-candidate cell. `solve()`
+and `countSolutions()` implement it with row/column/box bitmasks, and
+`findMrvCell` (used by the step-by-step visualiser) implements the same rule
+the slow way, so both visit the same nodes. `in-order` is a naive row-major
+picker. Nodes = placements attempted. The `ms` column for our MRV was
+re-measured after the switch to bitmasks (2-3x faster than the original
+`Set`-based version); the in-order column is from the original run.
 
 | puzzle | clues | our MRV | ms | in-order | ms |
 | --- | --- | --- | --- | --- | --- |
-| anti-backtracking | 17 | 58,234 | 133 | **69,175,317** | 35,193 |
+| anti-backtracking | 17 | 58,234 | 58 | **69,175,317** | 35,193 |
 | AI Escargot | 23 | 220 | 0 | 8,970 | 5 |
-| Inkala 2012 | 21 | 13,811 | 34 | 49,559 | 25 |
-| Platinum Blonde | 21 | 2,886 | 5 | 1,114,772 | 536 |
-| Golden Nugget | 21 | 14,713 | 29 | 304,054 | 169 |
-| Easter Monster | 21 | 6,274 | 16 | 262,015 | 183 |
-| **Fata Morgana** | 21 | **74,020** | **177** | 1,984,466 | 1,116 |
-| Red Dwarf | 22 | 10,428 | 24 | 138,496 | 80 |
-| Norvig grid2 | 17 | 719 | 2 | 9,727,397 | 4,988 |
+| Inkala 2012 | 21 | 13,811 | 11 | 49,559 | 25 |
+| Platinum Blonde | 21 | 2,886 | 2 | 1,114,772 | 536 |
+| Golden Nugget | 21 | 14,713 | 10 | 304,054 | 169 |
+| Easter Monster | 21 | 6,274 | 5 | 262,015 | 183 |
+| **Fata Morgana** | 21 | **74,020** | **55** | 1,984,466 | 1,116 |
+| Red Dwarf | 22 | 10,428 | 8 | 138,496 | 80 |
+| Norvig grid2 | 17 | 719 | 1 | 9,727,397 | 4,988 |
 
-For scale, generated puzzles need a median of 42 (easy) to 204 (expert) nodes
-under the same solver.
+For scale, generated puzzles need a median of 84 (easy), 242 (medium),
+396 (hard) and 298 (expert) nodes under the same solver. Search cost follows
+sparsity, not logical difficulty: hard puzzles are dug the furthest, so they
+are the most expensive to search, while expert puzzles are harder for a
+person but not for the solver.
 
 Two things worth noting:
 
 - **Our worst case is Fata Morgana, not the anti-backtracking grid.** MRV
   already defuses the ordering attack (1,188× on that grid); what remains
   expensive is genuine logical depth.
-- Everything here solves in under 180 ms, so none of it threatens the UI. These
+- Everything here solves in under 60 ms, so none of it threatens the UI. These
   are regression fixtures, not performance problems.
 
 ## What singles alone achieve

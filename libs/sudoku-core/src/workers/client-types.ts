@@ -16,6 +16,12 @@ export interface SolveCallbacks {
 // so composables here can depend on the shape without depending on a worker.
 export interface SudokuClient {
   generate: (difficulty: Difficulty) => Promise<Puzzle>
+  /**
+   * Start building a puzzle for `difficulty` in the background, so a later
+   * generate() resolves immediately. A hint, not a request: clients without a
+   * background thread may ignore it, which is why it is optional.
+   */
+  prefetch?: (difficulty: Difficulty) => void
   solve: (board: Board, speed: SolveSpeed, callbacks: SolveCallbacks) => number
   cancel: (requestId: number) => void
   dispose: () => void

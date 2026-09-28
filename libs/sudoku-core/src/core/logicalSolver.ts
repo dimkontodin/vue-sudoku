@@ -1,6 +1,7 @@
 import { CELLS } from './constants'
 import { computeCandidates } from './candidates'
-import { noteMask } from './notes'
+import { noteCount, noteMask } from './notes'
+import { UNITS } from './units'
 import { conflictsIn } from './validate'
 import { bug, simpleColouring } from './techniques/colouring'
 import { jellyfish, swordfish, xWing } from './techniques/fish'
@@ -13,6 +14,7 @@ import {
   type Technique,
   type TechniqueId,
   type TechniqueStep,
+  type TechniqueTier,
 } from './techniques/types'
 import type { Board, Difficulty, Notes } from './types'
 
@@ -53,6 +55,11 @@ export interface SolveOptions {
   allowUniquenessTechniques?: boolean
   /** Stop after this many steps, as a runaway guard. */
   maxSteps?: number
+  /**
+   * Only try techniques up to this tier. The generator uses it to dig a puzzle
+   * that stays solvable with the techniques its difficulty allows.
+   */
+  maxTier?: TechniqueTier
 }
 
 export interface LogicalSolveResult {
@@ -63,8 +70,19 @@ export interface LogicalSolveResult {
   used: Set<TechniqueId>
   /** The hardest technique required, or null if the puzzle needed none. */
   hardest: TechniqueId | null
-  /** Sum of per-step scores — total work, not just peak difficulty. */
+  /**
+   * Deduction beyond the forced moves: the sum of per-step technique scores,
+   * with repeats of a technique already used discounted (see REPEAT_FACTOR).
+   * Zero for a singles-only puzzle.
+   */
   score: number
+  /**
+   * How hard the forced moves were to *find*: grows each time the player had
+   * only one or two singles available (see singlesPressure()). This is how a
+   * sparse grid's harder opening counts toward the grade without counting
+   * clues directly.
+   */
+  pressure: number
   difficulty: Difficulty
 }
 
@@ -85,10 +103,11 @@ export function findNextStep(
   candidates: Notes,
   options: SolveOptions = {},
 ): TechniqueStep | null {
-  const { allowUniquenessTechniques = false } = options
+  const { allowUniquenessTechniques = false, maxTier = 3 } = options
 
   for (const { id, run } of TECHNIQUE_ORDER) {
     if (id === 'bug' && !allowUniquenessTechniques) continue
+    if (TECHNIQUE_META[id].tier > maxTier) continue
     const step = run(board, candidates)
     if (step) return step
   }
@@ -97,27 +116,111 @@ export function findNextStep(
 }
 
 /**
- * Grade from the accumulated score, floored at the tier of the hardest
- * technique used. Copied from HoDoKu's model, and for the reason HoDoKu gives:
- * pure hardest-technique grading makes a puzzle needing one lucky X-Wing rate
- * above one needing forty patient steps, which does not match how either feels
- * to play.
+ * Later uses of a technique the player has already applied once are worth
+ * this fraction of its score: spotting the tenth pointing pair is not ten times
+ * the insight of the first, and without the discount a long run of cheap tier-1
+ * steps outscores one genuinely hard Y-Wing.
  */
-function gradeFrom(score: number, hardest: TechniqueId | null): Difficulty {
+const REPEAT_FACTOR = 0.5
+
+/**
+ * How many distinct placements singles offer right now. Naked singles are
+ * cells with one candidate. Hidden singles are digits with one spot in some unit.
+ * A cell found both ways counts once.
+ */
+function countSingles(board: Board, candidates: Notes): number {
+  const found = new Set<number>()
+
+  for (let index = 0; index < CELLS; index++) {
+    const mask = candidates[index] ?? 0
+    if (!board[index] && noteCount(mask) === 1) found.add(index * 16 + (31 - Math.clz32(mask)))
+  }
+
+  for (const unit of UNITS) {
+    for (let bit = 0; bit < 9; bit++) {
+      let spot = -1
+      let count = 0
+      for (const cell of unit.cells) {
+        if (board[cell] === bit + 1) {
+          count = 2 // already placed: not a single
+          break
+        }
+        if (!board[cell] && (candidates[cell] ?? 0) & (1 << bit)) {
+          spot = cell
+          if (++count > 1) break
+        }
+      }
+      if (count === 1) found.add(spot * 16 + bit)
+    }
+  }
+
+  return found.size
+}
+
+/**
+ * The cost of one forced move, given how many were available: 1 when the
+ * player had to find the only one, falling off quickly once several are on
+ * offer. Summed over a solve, this is near zero for a generous grid and grows
+ * with each bottleneck a sparse one forces.
+ */
+function singlesPressure(available: number): number {
+  return available <= 1 ? 1 : 1 / (available * available)
+}
+
+/**
+ * Pressure at or above this makes a singles-only puzzle 'medium'. For scale:
+ * generated 40-clue grids sit around 1.7, 26-clue ones around 4, and the
+ * 17-clue anti-backtracking grid at 8.6. Below it the player always has a few
+ * obvious moves to choose from.
+ */
+export const PRESSURE_MEDIUM = 4
+
+/** How much one unit of pressure adds to the score, once a technique is needed. */
+const PRESSURE_WEIGHT = 5
+
+export const DIFFICULTY_RANK: Record<Difficulty, number> = {
+  easy: 0,
+  medium: 1,
+  hard: 2,
+  expert: 3,
+}
+
+/**
+ * Grade from what the puzzle demands. The hardest technique used sets a floor
+ * (tier N floors at the Nth level), and the total work can raise the grade above
+ * that floor. This is HoDoKu's model and HoDoKu's reason for it: grading only
+ * by the hardest technique would rate a puzzle needing one lucky X-Wing above
+ * one needing forty patient steps, which is not how either feels to play.
+ *
+ * The work is the technique score plus the weighted singles pressure. That is
+ * the only place clue count enters: a sparse grid forces more "only one move
+ * available" bottlenecks.
+ *
+ * - Singles only: 'easy', or 'medium' when the pressure says the forced moves
+ *   were hard to find. Never higher, because the player is never truly stuck.
+ * - Stalled (the implemented techniques could not finish): 'expert'. It needs
+ *   something beyond every technique we know, which is the definition of the
+ *   top level, not a reason to rate it by the easy part the solver managed.
+ *   The generator never emits these, because hints could not finish them.
+ */
+function gradeFrom(
+  score: number,
+  pressure: number,
+  hardest: TechniqueId | null,
+  solved: boolean,
+): Difficulty {
+  if (!solved) return 'expert'
+
   const tier = hardest ? TECHNIQUE_META[hardest].tier : 0
+  if (tier === 0) return pressure >= PRESSURE_MEDIUM ? 'medium' : 'easy'
 
-  // Calibrated against 40 generated puzzles per difficulty rather than guessed.
-  // Singles score 0, so a score of 0 means "never needed anything but forced
-  // moves" — which is what easy means.
-  const byScore: Difficulty =
-    score === 0 ? 'easy' : score < 100 ? 'medium' : score < 300 ? 'hard' : 'expert'
+  // Calibrated on puzzles from the difficulty-targeted generator
+  // (generator.report.spec.ts), not guessed.
+  const work = score + pressure * PRESSURE_WEIGHT
+  const byWork: Difficulty = work < 100 ? 'medium' : work < 250 ? 'hard' : 'expert'
 
-  // Tier 3 floors at 'hard', not 'expert': one Y-Wing does not make an expert
-  // puzzle. Needing many of them will, via the score.
-  const floor: Difficulty = tier === 0 ? 'easy' : tier === 1 ? 'medium' : 'hard'
-
-  const rank: Record<Difficulty, number> = { easy: 0, medium: 1, hard: 2, expert: 3 }
-  return rank[byScore] >= rank[floor] ? byScore : floor
+  const floor: Difficulty = tier === 1 ? 'medium' : tier === 2 ? 'hard' : 'expert'
+  return DIFFICULTY_RANK[byWork] >= DIFFICULTY_RANK[floor] ? byWork : floor
 }
 
 /**
@@ -136,6 +239,7 @@ export function solveLogically(input: Board, options: SolveOptions = {}): Logica
   const steps: TechniqueStep[] = []
   const used = new Set<TechniqueId>()
   let score = 0
+  let pressure = 0
 
   if (conflictsIn(board).size > 0) {
     return {
@@ -145,6 +249,7 @@ export function solveLogically(input: Board, options: SolveOptions = {}): Logica
       used,
       hardest: null,
       score: 0,
+      pressure: 0,
       difficulty: 'easy',
     }
   }
@@ -155,10 +260,13 @@ export function solveLogically(input: Board, options: SolveOptions = {}): Logica
     const step = findNextStep(board, candidates, options)
     if (!step) break
 
+    const meta = TECHNIQUE_META[step.technique]
+    if (meta.tier === 0) pressure += singlesPressure(countSingles(board, candidates))
+    else score += used.has(step.technique) ? meta.score * REPEAT_FACTOR : meta.score
+
     applyStep(board, candidates, step)
     steps.push(step)
     used.add(step.technique)
-    score += TECHNIQUE_META[step.technique].score
 
     // Placing a digit invalidates candidates across all its peers, so rebuild
     // rather than trying to patch them.
@@ -184,7 +292,19 @@ export function solveLogically(input: Board, options: SolveOptions = {}): Logica
     }
   }
 
-  return { solved, board, steps, used, hardest, score, difficulty: gradeFrom(score, hardest) }
+  score = Math.round(score)
+  pressure = Math.round(pressure * 10) / 10
+
+  return {
+    solved,
+    board,
+    steps,
+    used,
+    hardest,
+    score,
+    pressure,
+    difficulty: gradeFrom(score, pressure, hardest, solved),
+  }
 }
 
 export { TECHNIQUE_META }

@@ -82,6 +82,10 @@ export function createSudokuClient(): SudokuClient {
       })
     },
 
+    prefetch(difficulty) {
+      send({ type: 'prefetch', requestId: nextRequestId++, difficulty })
+    },
+
     solve(board, speed, callbacks) {
       const requestId = nextRequestId++
       solveCallbacks.set(requestId, callbacks)

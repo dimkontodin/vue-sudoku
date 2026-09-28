@@ -317,6 +317,9 @@ onMounted(() => {
     game.restore(saved)
     timer.setElapsed(saved.elapsedMs)
     timer.start()
+    // The player will want a new game at this level eventually. Build it now,
+    // while they play the one they came back to.
+    client.prefetch?.(difficulty.value)
     return
   }
   void newGame()
