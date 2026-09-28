@@ -5,7 +5,7 @@ import vue from '@vitejs/plugin-vue'
 import dts from 'vite-plugin-dts'
 import * as path from 'path'
 
-export default defineConfig(() => ({
+export default defineConfig(({ mode }) => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/libs/sudoku-core',
   resolve: {
@@ -19,6 +19,7 @@ export default defineConfig(() => ({
     outDir: './dist',
     emptyOutDir: true,
     reportCompressedSize: true,
+    sourcemap: mode !== 'production',
     commonjsOptions: {
       transformMixedEsModules: true,
     },

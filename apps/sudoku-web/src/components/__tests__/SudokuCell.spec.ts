@@ -6,20 +6,25 @@ import SudokuCell from '../SudokuCell.vue'
 
 type CellProps = InstanceType<typeof SudokuCell>['$props']
 
+// Every required prop gets a default here. The object is typed rather than
+// cast so that adding a required prop to SudokuCell fails the type check,
+// instead of surfacing as a "Missing required prop" warning at runtime.
+const DEFAULT_PROPS: CellProps = {
+  index: 0,
+  value: 0,
+  notes: 0,
+  isGiven: false,
+  isSelected: false,
+  isPeer: false,
+  isSameValue: false,
+  hasConflict: false,
+  isIncorrect: false,
+  isHintPattern: false,
+  isHintTarget: false,
+}
+
 function mountCell(overrides: Partial<CellProps> = {}) {
-  return mount(SudokuCell, {
-    props: {
-      index: 0,
-      value: 0,
-      notes: 0,
-      isGiven: false,
-      isSelected: false,
-      isPeer: false,
-      isSameValue: false,
-      hasConflict: false,
-      ...overrides,
-    } as CellProps,
-  })
+  return mount(SudokuCell, { props: { ...DEFAULT_PROPS, ...overrides } })
 }
 
 describe('SudokuCell', () => {

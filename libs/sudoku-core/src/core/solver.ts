@@ -1,5 +1,5 @@
 import { CELLS } from './constants'
-import { peersOf } from './grid'
+import { boxOf, colOf, peersOf, rowOf } from './grid'
 import { conflictsIn } from './validate'
 import type { Board } from './types'
 
@@ -56,21 +56,108 @@ function shuffle<T>(items: T[]): T[] {
   return copy
 }
 
-function search(board: Board, randomize: boolean): Board | null {
-  const cell = findMrvCell(board)
-  if (!cell) return board
-  if (cell.candidates.length === 0) return null
+// ---------------------------------------------------------------------------
+// Bitmask search — the hot path behind solve() and countSolutions().
+//
+// The generator runs countSolutions() once per clue it tries to remove, and a
+// difficulty-targeted generator does that for several candidate grids per
+// request, so this has to be fast. Instead of rebuilding a candidate list
+// from 20 peers for every cell at every node (what findMrvCell does), it keeps
+// one "digits used" mask per row, column and box, updated as digits are
+// placed and removed. A cell's candidates are then three ORs and a NOT.
+// ---------------------------------------------------------------------------
 
-  const order = randomize ? shuffle(cell.candidates) : cell.candidates
+const FULL = 0x1ff
 
-  for (const digit of order) {
-    board[cell.index] = digit
-    const result = search(board, randomize)
-    if (result) return result
-    board[cell.index] = 0
+// popcount for 9-bit masks, as a lookup rather than a loop.
+const BIT_COUNT = (() => {
+  const table = new Uint8Array(FULL + 1)
+  for (let mask = 1; mask <= FULL; mask++) table[mask] = (mask & 1) + table[mask >> 1]!
+  return table
+})()
+
+interface Masks {
+  rows: Uint16Array
+  cols: Uint16Array
+  boxes: Uint16Array
+}
+
+function initMasks(board: Board): Masks {
+  const masks: Masks = {
+    rows: new Uint16Array(9),
+    cols: new Uint16Array(9),
+    boxes: new Uint16Array(9),
+  }
+  for (let i = 0; i < CELLS; i++) {
+    const value = board[i]
+    if (!value) continue
+    const bit = 1 << (value - 1)
+    masks.rows[rowOf(i)]! |= bit
+    masks.cols[colOf(i)]! |= bit
+    masks.boxes[boxOf(i)]! |= bit
+  }
+  return masks
+}
+
+function freeMask(masks: Masks, index: number): number {
+  return (
+    ~(masks.rows[rowOf(index)]! | masks.cols[colOf(index)]! | masks.boxes[boxOf(index)]!) & FULL
+  )
+}
+
+function toggle(masks: Masks, index: number, bit: number): void {
+  masks.rows[rowOf(index)]! ^= bit
+  masks.cols[colOf(index)]! ^= bit
+  masks.boxes[boxOf(index)]! ^= bit
+}
+
+/**
+ * The empty cell with the fewest candidates (MRV) as `index`, and its mask.
+ * `index` is -1 when the board is full; `mask` is 0 for a dead cell.
+ */
+function pickCell(board: Board, masks: Masks): { index: number; mask: number } {
+  let bestIndex = -1
+  let bestMask = 0
+  let bestCount = 10
+
+  for (let i = 0; i < CELLS; i++) {
+    if (board[i]) continue
+    const mask = freeMask(masks, i)
+    const count = BIT_COUNT[mask]!
+    if (count < bestCount) {
+      bestIndex = i
+      bestMask = mask
+      bestCount = count
+      if (count <= 1) break
+    }
   }
 
-  return null
+  return { index: bestIndex, mask: bestMask }
+}
+
+function digitsOf(mask: number): number[] {
+  const digits: number[] = []
+  for (let digit = 1; digit <= 9; digit++) if (mask & (1 << (digit - 1))) digits.push(digit)
+  return digits
+}
+
+function search(board: Board, masks: Masks, randomize: boolean): boolean {
+  const { index, mask } = pickCell(board, masks)
+  if (index === -1) return true
+  if (!mask) return false
+
+  const digits = randomize ? shuffle(digitsOf(mask)) : digitsOf(mask)
+
+  for (const digit of digits) {
+    const bit = 1 << (digit - 1)
+    board[index] = digit
+    toggle(masks, index, bit)
+    if (search(board, masks, randomize)) return true
+    toggle(masks, index, bit)
+    board[index] = 0
+  }
+
+  return false
 }
 
 // Mutates `board` in place and returns it once solved, or returns `null` if
@@ -83,7 +170,7 @@ export function solve(board: Board, randomize = false): Board | null {
   // the null we can determine up front in O(cells).
   if (conflictsIn(board).size > 0) return null
 
-  return search(board, randomize)
+  return search(board, initMasks(board), randomize) ? board : null
 }
 
 interface SearchState {
@@ -93,6 +180,7 @@ interface SearchState {
 
 function searchSolutionCount(
   board: Board,
+  masks: Masks,
   limit: number,
   nodeBudget: number,
   state: SearchState,
@@ -103,15 +191,20 @@ function searchSolutionCount(
     return 0
   }
 
-  const cell = findMrvCell(board)
-  if (!cell) return 1
-  if (cell.candidates.length === 0) return 0
+  const { index, mask } = pickCell(board, masks)
+  if (index === -1) return 1
+  if (!mask) return 0
 
   let count = 0
-  for (const digit of cell.candidates) {
-    board[cell.index] = digit
-    count += searchSolutionCount(board, limit - count, nodeBudget, state)
-    board[cell.index] = 0
+  for (let digit = 1; digit <= 9; digit++) {
+    const bit = 1 << (digit - 1)
+    if (!(mask & bit)) continue
+
+    board[index] = digit
+    toggle(masks, index, bit)
+    count += searchSolutionCount(board, masks, limit - count, nodeBudget, state)
+    toggle(masks, index, bit)
+    board[index] = 0
     if (state.aborted || count >= limit) break
   }
 
@@ -132,7 +225,7 @@ export function countSolutions(board: Board, limit = 2, nodeBudget = Infinity): 
   if (conflictsIn(board).size > 0) return 0
 
   const state: SearchState = { nodes: 0, aborted: false }
-  const count = searchSolutionCount(board, limit, nodeBudget, state)
+  const count = searchSolutionCount(board, initMasks(board), limit, nodeBudget, state)
   return state.aborted ? -1 : count
 }
 
