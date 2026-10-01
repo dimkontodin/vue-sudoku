@@ -14,6 +14,7 @@ export * from './core/validate'
 
 export * from './composables/useBoardKeyboard'
 export * from './composables/useGameStorage'
+export * from './composables/useGameplayPrefs'
 export * from './composables/useGridEntry'
 export * from './composables/useHints'
 export * from './composables/useHistory'

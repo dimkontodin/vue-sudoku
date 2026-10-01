@@ -6,6 +6,7 @@ import { useSudoku } from '@vue-sudoku/sudoku-core'
 import { useTimer } from '@vue-sudoku/sudoku-core'
 import { useBoardKeyboard } from '@vue-sudoku/sudoku-core'
 import { useGameStorage } from '@vue-sudoku/sudoku-core'
+import { useGameplayPrefs } from '@vue-sudoku/sudoku-core'
 import { useStats } from '@vue-sudoku/sudoku-core'
 import { useHints } from '@vue-sudoku/sudoku-core'
 import { usePuzzleHandoff } from '@vue-sudoku/sudoku-core'
@@ -16,6 +17,7 @@ import GameStatusBar from '@/components/GameStatusBar.vue'
 import DifficultyPicker from '@/components/DifficultyPicker.vue'
 import WinDialog from '@/components/WinDialog.vue'
 import HintPanel from '@/components/HintPanel.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 // The only "smart" component: it owns the composables and hands plain props
 // down to components that know nothing about the game.
@@ -27,12 +29,13 @@ const storage = useGameStorage()
 const stats = useStats()
 const hints = useHints()
 const handoff = usePuzzleHandoff()
+const prefs = useGameplayPrefs()
 
 const difficulty = ref<Difficulty>('easy')
 const isGenerating = shallowRef(false)
 const hasWon = shallowRef(false)
 const showWinDialog = shallowRef(false)
-const instantFeedback = shallowRef(false)
+const showRestartConfirm = shallowRef(false)
 // Set by the Check button and cleared by the next edit — a snapshot answer to
 // "how am I doing right now", not a persistent mode.
 const isChecking = shallowRef(false)
@@ -41,13 +44,17 @@ const isBestTime = shallowRef(false)
 // out of the stats rather than polluting a difficulty band it never belonged to.
 const isCustom = shallowRef(false)
 
-useBoardKeyboard(game, { isEnabled: () => !isGenerating.value && !hasWon.value })
+// Off while the restart dialog is up: the board's handler swallows Escape (which
+// would stop the dialog closing) and would type digits into the grid behind it.
+useBoardKeyboard(game, {
+  isEnabled: () => !isGenerating.value && !hasWon.value && !showRestartConfirm.value,
+})
 
 const NO_CELLS: ReadonlySet<number> = new Set()
 
 /** Wrong cells are only surfaced when the player asked — by mode or by button. */
 const incorrect = computed(() =>
-  instantFeedback.value || isChecking.value ? game.incorrectCells.value : NO_CELLS,
+  prefs.autoCheck.value || isChecking.value ? game.incorrectCells.value : NO_CELLS,
 )
 
 const canHint = computed(() => !hasWon.value && game.board.value.some((value) => value === 0))
@@ -105,6 +112,7 @@ function selectDifficulty(next: Difficulty) {
 }
 
 function restart() {
+  showRestartConfirm.value = false
   game.reset()
   isChecking.value = false
   hints.reset()
@@ -262,7 +270,8 @@ onMounted(() => {
       :difficulty="difficulty"
       :elapsed="timer.formatted.value"
       :is-running="timer.isRunning.value"
-      :mistakes="game.mistakes.value"
+      :mistakes="prefs.mistakesVisible.value ? game.mistakes.value : undefined"
+      :hints-used="game.hintsUsed.value"
       @toggle-timer="timer.toggle()"
     />
 
@@ -292,13 +301,13 @@ onMounted(() => {
 
     <GameControls
       :can-hint="canHint"
-      :instant-feedback="instantFeedback"
+      :instant-feedback="prefs.autoCheck.value"
       :is-checking="isChecking"
       @hint="hint"
       @check="isChecking = true"
-      @toggle-instant-feedback="instantFeedback = !instantFeedback"
+      @toggle-instant-feedback="prefs.setAutoCheck(!prefs.autoCheck.value)"
       @fill-notes="fillNotes"
-      @restart="restart"
+      @restart="showRestartConfirm = true"
     />
 
     <HintPanel
@@ -316,6 +325,17 @@ onMounted(() => {
       <button type="button" class="game__reveal" @click="revealCell">Reveal a cell</button>
       · Arrows move · 1–9 enter · <kbd>N</kbd> notes · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo
     </p>
+
+    <!-- Restart wipes every entry, so it asks first (the other buttons are
+         recoverable via undo or are not destructive). -->
+    <ConfirmDialog
+      :open="showRestartConfirm"
+      title="Restart this puzzle?"
+      message="Your entries are cleared. The givens stay."
+      confirm-label="Restart"
+      @confirm="restart"
+      @cancel="showRestartConfirm = false"
+    />
 
     <WinDialog
       :open="showWinDialog"

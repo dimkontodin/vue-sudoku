@@ -1,12 +1,13 @@
 import { computed, shallowRef } from 'vue'
-import { isVersionedObject, readJson, writeJson } from '@vue-sudoku/sudoku-core'
+import { isVersionedObject, readJson, writeJson } from '../utils/storage'
 
 /**
- * Standing choices about how the game behaves, as opposed to the one-shot
- * actions in the Play tab's overflow sheet. Both used to be component-local or
- * buried in that sheet, and neither survived a reload.
+ * Standing choices about how the game behaves, as opposed to one-shot actions
+ * like restart or fill notes. They persist across reloads and are shared by the
+ * web and mobile apps, so both treat a wrong digit the same way.
  *
- * Same shape as useHaptics: shared singleton over the core storage helpers.
+ * A shared singleton over the storage helpers: every screen that asks gets the
+ * same refs, so flipping a switch on Settings is seen by the board at once.
  */
 
 const STORAGE_KEY = 'vue-sudoku:gameplay'
