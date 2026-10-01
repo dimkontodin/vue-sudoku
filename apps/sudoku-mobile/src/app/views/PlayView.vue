@@ -18,6 +18,7 @@ import type { Difficulty } from '@vue-sudoku/sudoku-core'
 import {
   DIFFICULTIES,
   useBoardKeyboard,
+  useGameplayPrefs,
   useGameStorage,
   useHints,
   usePuzzleHandoff,
@@ -31,7 +32,6 @@ import NumberPad from '../components/NumberPad.vue'
 import HintBanner from '../components/HintBanner.vue'
 import WinModal from '../components/WinModal.vue'
 import { useDigitFirst, type InputFeedback } from '../composables/useDigitFirst'
-import { useGameplayPrefs } from '../composables/useGameplayPrefs'
 import { useBoardFit } from '../composables/useBoardFit'
 import { useHaptics } from '../composables/useHaptics'
 

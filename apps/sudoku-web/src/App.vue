@@ -11,6 +11,7 @@ import { RouterLink, RouterView } from 'vue-router'
         <RouterLink to="/enter">Enter</RouterLink>
         <RouterLink to="/solver">Solver</RouterLink>
         <RouterLink to="/stats">Stats</RouterLink>
+        <RouterLink to="/settings">Settings</RouterLink>
       </nav>
     </header>
 

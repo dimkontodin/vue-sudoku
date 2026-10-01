@@ -55,6 +55,7 @@ const STUBS = {
   NumberPad: true,
   GameControls: true,
   GameStatusBar: true,
+  ConfirmDialog: true,
   WinDialog: true,
   HintPanel: true,
 }

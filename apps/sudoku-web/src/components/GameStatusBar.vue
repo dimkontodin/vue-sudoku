@@ -5,8 +5,13 @@ defineProps<{
   difficulty: Difficulty
   elapsed: string
   isRunning: boolean
-  /** Wired up in Phase 5 along with auto-check. */
+  /**
+   * Omitted when the player has not asked to see it: a tally that ticks up the
+   * moment a digit lands tells them which digit was wrong, same as auto-check.
+   */
   mistakes?: number
+  /** Never a spoiler, so it is always shown. */
+  hintsUsed: number
 }>()
 
 const emit = defineEmits<{
@@ -28,8 +33,13 @@ const emit = defineEmits<{
       <span class="status__icon" aria-hidden="true">{{ isRunning ? '❚❚' : '▶' }}</span>
     </button>
 
-    <span v-if="mistakes != null" class="status__mistakes">
-      Mistakes <strong>{{ mistakes }}</strong>
+    <span class="status__counts">
+      <span v-if="mistakes != null" class="status__count">
+        Mistakes <strong>{{ mistakes }}</strong>
+      </span>
+      <span class="status__count">
+        Hints <strong>{{ hintsUsed }}</strong>
+      </span>
     </span>
   </div>
 </template>
@@ -74,7 +84,12 @@ const emit = defineEmits<{
   font-size: 0.6rem;
 }
 
-.status__mistakes {
+.status__counts {
+  display: flex;
+  gap: $gap-md;
+}
+
+.status__count {
   color: var(--color-text-muted);
 }
 </style>

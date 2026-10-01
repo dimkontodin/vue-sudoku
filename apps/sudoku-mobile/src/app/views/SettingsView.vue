@@ -14,7 +14,7 @@ import {
   IonToggle,
   IonToolbar,
 } from '@ionic/vue'
-import { useGameplayPrefs } from '../composables/useGameplayPrefs'
+import { useGameplayPrefs } from '@vue-sudoku/sudoku-core'
 import { useHaptics } from '../composables/useHaptics'
 import { useTheme, type ThemeChoice } from '../composables/useTheme'
 

@@ -24,6 +24,12 @@ const router = createRouter({
       component: () => import('@/views/SolverView.vue'),
     },
     {
+      path: '/settings',
+      name: 'settings',
+      // Lazy-loaded: preferences are a secondary screen.
+      component: () => import('@/views/SettingsView.vue'),
+    },
+    {
       path: '/stats',
       name: 'stats',
       // Lazy-loaded: stats are a secondary screen, no need to ship them
