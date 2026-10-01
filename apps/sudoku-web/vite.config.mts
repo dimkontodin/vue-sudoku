@@ -6,6 +6,8 @@ import vueDevTools from 'vite-plugin-vue-devtools';
 
 export default defineConfig(({ mode }) => ({
   root: import.meta.dirname,
+  // GitHub Pages serves a project site from /<repo>/, so the deploy workflow sets VITE_BASE.
+  base: process.env.VITE_BASE ?? '/',
   cacheDir: '../../node_modules/.vite/apps/sudoku-web',
   server:{
     port: Number(process.env.PORT) || 4200,
