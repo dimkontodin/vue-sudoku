@@ -38,6 +38,9 @@ export default defineConfig(({ mode }) => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
+    // Several solver specs generate dozens of random puzzles; that is well under 5s on a
+    // fast desktop but not on a shared CI runner.
+    testTimeout: 30_000,
     include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     reporters: ['default'],
     coverage: {
