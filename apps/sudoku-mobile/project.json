@@ -10,6 +10,24 @@
         "cwd": "apps/sudoku-mobile"
       }
     },
+    "android-bundle": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["cap-sync"],
+      "options": {
+        "command": "node scripts/gradle.mjs bundleRelease",
+        "cwd": "apps/sudoku-mobile"
+      },
+      "outputs": ["{projectRoot}/android/app/build/outputs/bundle/release"]
+    },
+    "android-apk": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["cap-sync"],
+      "options": {
+        "command": "node scripts/gradle.mjs assembleRelease",
+        "cwd": "apps/sudoku-mobile"
+      },
+      "outputs": ["{projectRoot}/android/app/build/outputs/apk/release"]
+    },
     "open": {
       "executor": "nx:run-commands",
       "dependsOn": ["cap-sync"],

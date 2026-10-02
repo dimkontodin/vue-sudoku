@@ -113,6 +113,9 @@ app from `/vue-sudoku/`, so the workflow sets the `VITE_BASE` environment variab
 VITE_BASE=/vue-sudoku/ pnpm nx build sudoku-web
 ```
 
+The Android app is released by pushing a `vX.Y.Z` tag, which builds a signed bundle for the Play
+Store. See [docs/releasing.md](docs/releasing.md).
+
 ## License
 
 [MIT](LICENSE) © Dimitris Kontodinas. The name "vue-sudoku" and the app icon are not licensed

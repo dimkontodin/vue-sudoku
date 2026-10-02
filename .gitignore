@@ -48,4 +48,9 @@ __screenshots__/
 *.timestamp-*-*.mjs
 
 test-results/
+
+# Android release signing (never commit keystores or their credentials)
+*.jks
+*.keystore
+keystore.properties
 playwright-report/

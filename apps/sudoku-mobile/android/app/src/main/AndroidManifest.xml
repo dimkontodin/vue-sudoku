@@ -35,7 +35,5 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
-
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Permissions: none. The app is fully offline (no backend, accounts or tracking). -->
 </manifest>
